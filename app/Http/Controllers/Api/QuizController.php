@@ -75,7 +75,8 @@ class QuizController extends Controller
             // Hitung jawaban yang benar
             $correct = 0;
             foreach ($questions as $question) {
-                $userAnswer = $request->answers[$question->id] ?? null;
+                // Cast ke string agar cocok dengan key JSON yang selalu string
+                $userAnswer = $request->answers[(string) $question->id] ?? null;
                 if ($userAnswer === $question->correct_answer) {
                     $correct++;
                 }
