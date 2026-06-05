@@ -28,7 +28,7 @@ class QuizController extends Controller
     public function getQuestions($quizId)
     {
         $quiz = Quiz::with('questions')->findOrFail($quizId);
-    
+
         // Format questions agar options selalu array, bukan JSON string
         $questions = $quiz->questions->map(function ($q) {
             return [
@@ -41,7 +41,7 @@ class QuizController extends Controller
                 'correct_answer' => $q->correct_answer,
             ];
         });
-    
+
         return response()->json([
             'quiz'      => ['id' => $quiz->id, 'title' => $quiz->title],
             'questions' => $questions,
@@ -55,45 +55,69 @@ class QuizController extends Controller
             'answers' => 'required|array'
         ]);
 
-        $quiz = Quiz::findOrFail($quizId);
-        $questions = $quiz->questions;
-        $user = $request->user();
+        try {
+            \Log::info('Quiz submit - Start', ['quiz_id' => $quizId, 'user_id' => $request->user()?->id]);
 
-        $correct = 0;
-        $total = count($questions);
+            $quiz = Quiz::findOrFail($quizId);
+            $questions = $quiz->questions;
+            $user = $request->user();
 
-        foreach ($questions as $question) {
-            $userAnswer = $request->answers[$question->id] ?? null;
-            if ($userAnswer === $question->correct_answer) {
-                $correct++;
+            $total = $questions->count();
+
+            // Validasi: jika tidak ada soal, tolak lebih awal
+            if ($total === 0) {
+                \Log::warning('Quiz submit - No questions found', ['quiz_id' => $quizId]);
+                return response()->json(['message' => 'Kuis tidak memiliki soal'], 422);
             }
+
+            \Log::info('Quiz submit - Questions loaded', ['total_questions' => $total]);
+
+            // Hitung jawaban yang benar
+            $correct = 0;
+            foreach ($questions as $question) {
+                $userAnswer = $request->answers[$question->id] ?? null;
+                if ($userAnswer === $question->correct_answer) {
+                    $correct++;
+                }
+            }
+
+            $score = round(($correct / $total) * 100, 2);
+            \Log::info('Quiz submit - Score calculated', ['score' => $score, 'correct' => $correct, 'total' => $total]);
+
+            // Update Mastery menggunakan Adaptive Engine
+            \Log::info('Quiz submit - Calling updateMastery', ['user_id' => $user->id, 'topic_id' => $quiz->topic_id]);
+            $startTime = microtime(true);
+            
+            $mastery = $this->adaptiveService->updateMastery(
+                $user->id, 
+                $quiz->topic_id, 
+                $score,
+                25 // contoh waktu pengerjaan dalam menit
+            );
+
+            $elapsed = (microtime(true) - $startTime) * 1000;
+            \Log::info('Quiz submit - updateMastery completed', ['elapsed_ms' => $elapsed, 'mastery_level' => $mastery->mastery_level]);
+
+            \Log::info('Quiz submit - Success', ['user_id' => $user->id, 'quiz_id' => $quizId]);
+
+            return response()->json([
+                'message' => 'Kuis selesai',
+                'score' => $score,
+                'correct_answers' => $correct,
+                'total_questions' => $total,
+                'mastery_level' => $mastery->mastery_level,
+                'new_recommendations' => $this->adaptiveService->getRecommendations($user->id)
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Quiz submit - Error', [
+                'quiz_id' => $quizId,
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            throw $e;
         }
-
-        $score = round(($correct / $total) * 100, 2);
-
-        // Update Mastery menggunakan Adaptive Engine
-        $mastery = $this->adaptiveService->updateMastery(
-            $user->id, 
-            $quiz->topic_id, 
-            $score,
-            25 // contoh waktu pengerjaan dalam menit
-        );
-
-        // Catat learning log
-        \App\Models\LearningLog::create([
-            'user_id' => $user->id,
-            'topic_id' => $quiz->topic_id,
-            'material_id' => null,
-            'time_spent_minutes' => 25,
-        ]);
-
-        return response()->json([
-            'message' => 'Kuis selesai',
-            'score' => $score,
-            'correct_answers' => $correct,
-            'total_questions' => $total,
-            'mastery_level' => $mastery->mastery_level,
-            'new_recommendations' => $this->adaptiveService->getRecommendations($user->id)
-        ]);
     }
 }
