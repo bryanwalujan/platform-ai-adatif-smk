@@ -28,9 +28,23 @@ class QuizController extends Controller
     public function getQuestions($quizId)
     {
         $quiz = Quiz::with('questions')->findOrFail($quizId);
+    
+        // Format questions agar options selalu array, bukan JSON string
+        $questions = $quiz->questions->map(function ($q) {
+            return [
+                'id'             => $q->id,
+                'question'       => $q->question,
+                // decode jika masih string, langsung pakai jika sudah array
+                'options'        => is_string($q->options)
+                                        ? json_decode($q->options, true)
+                                        : ($q->options ?? []),
+                'correct_answer' => $q->correct_answer,
+            ];
+        });
+    
         return response()->json([
-            'quiz' => $quiz,
-            'questions' => $quiz->questions
+            'quiz'      => ['id' => $quiz->id, 'title' => $quiz->title],
+            'questions' => $questions,
         ]);
     }
 
