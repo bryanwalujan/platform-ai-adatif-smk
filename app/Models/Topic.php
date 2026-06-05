@@ -20,4 +20,14 @@ class Topic extends Model
     {
         return $this->hasMany(StudentTopicMastery::class);
     }
+
+    public function quizzes()
+    {
+        return $this->hasMany(Quiz::class);
+    }
+    
+    public function learningLogs()
+    {
+        return $this->hasMany(LearningLog::class);
+    }
 }

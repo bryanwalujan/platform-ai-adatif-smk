@@ -11,12 +11,15 @@ return new class extends Migration
      */
     public function up(): void
 {
-    Schema::create('learning_logs', function (Blueprint $table) {
+    Schema::create('pbl_projects', function (Blueprint $table) {
         $table->id();
         $table->foreignId('user_id')->constrained()->onDelete('cascade');
-        $table->foreignId('material_id')->nullable()->constrained()->onDelete('set null');
-        $table->foreignId('topic_id')->constrained()->onDelete('cascade');
-        $table->integer('time_spent_minutes')->default(0);
+        $table->string('title');
+        $table->text('description')->nullable();
+        $table->string('status')->default('draft'); // draft, in_progress, submitted, completed
+        $table->string('level')->default('Dasar');
+        $table->text('feedback')->nullable();
+        $table->integer('score')->nullable();
         $table->timestamps();
     });
 }
@@ -26,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('learning_logs');
+        Schema::dropIfExists('pbl_projects');
     }
 };

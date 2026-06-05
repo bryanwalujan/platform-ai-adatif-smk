@@ -13,15 +13,17 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'name' => 'required',
+            'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users',
             'password' => 'required|min:6',
+            'role' => 'required|in:siswa,guru'
         ]);
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'role' => $request->role,
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -29,7 +31,8 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Registrasi berhasil',
             'user' => $user,
-            'token' => $token
+            'token' => $token,
+            'role' => $user->role
         ]);
     }
 
@@ -49,8 +52,14 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Login berhasil',
-            'user' => $user,
-            'token' => $token
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+            ],
+            'token' => $token,
+            'role' => $user->role
         ]);
     }
 
