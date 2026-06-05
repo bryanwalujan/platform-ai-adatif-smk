@@ -17,7 +17,13 @@ class TeacherController extends Controller
     {
         $students = User::where('role', 'siswa')
             ->withCount(['pblProjects', 'studentMasteries'])
-            ->get();
+            ->with('studentMasteries')
+            ->get()
+            ->map(function ($student) {
+                $avgMastery = $student->studentMasteries->avg('mastery_level') ?? 0;
+                $student->avg_mastery = round($avgMastery, 2);
+                return $student;
+            });
 
         return response()->json($students);
     }
@@ -38,12 +44,14 @@ class TeacherController extends Controller
             ->get();
 
         $avgMastery = $masteries->avg('mastery_level') ?? 0;
+        $pblLevel = $projects->where('score', '!=', null)->avg('score') ?? 0;
 
         return response()->json([
             'student' => $student,
             'average_mastery' => round($avgMastery, 2),
             'masteries' => $masteries,
             'pbl_projects' => $projects,
+            'pbl_level' => round($pblLevel, 2),
         ]);
     }
 
