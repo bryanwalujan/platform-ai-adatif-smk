@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ContentController;
 use App\Http\Controllers\Api\MasteryController;   
 use App\Http\Controllers\Api\NotificationController; 
 use App\Http\Controllers\Api\InteractionLogController; 
+use App\Http\Controllers\Api\DiscussionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -144,6 +145,16 @@ Route::middleware('auth:sanctum')->group(function () {
     // BARU: endpoint untuk mencatat interaksi siswa (dipakai di TeacherAdaptiveScreen)
     Route::post('/interaction-logs',          [InteractionLogController::class, 'store']);
     Route::get('/interaction-logs/summary',   [InteractionLogController::class, 'summary']);
+
+    // BARU: endpoint untuk diskusi tanya jawab per topik
+    Route::get('/topics/{topicId}/discussions',         [DiscussionController::class, 'index']);
+    Route::post('/topics/{topicId}/discussions',        [DiscussionController::class, 'store']);
+
+    // Detail & interaksi diskusi
+    Route::get('/discussions/{id}',                     [DiscussionController::class, 'show']);
+    Route::post('/discussions/{id}/replies',            [DiscussionController::class, 'reply']);
+    Route::post('/discussions/{id}/resolve',            [DiscussionController::class, 'resolve']);
+    Route::post('/discussions/{id}/replies/{replyId}/best', [DiscussionController::class, 'markBestAnswer']);
 
     /*
     |--------------------------------------------------------------------------
