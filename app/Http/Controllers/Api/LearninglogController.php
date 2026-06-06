@@ -43,12 +43,14 @@ class LearningLogController extends Controller
     {
         $validated = $request->validate([
             'topic_id'           => 'required|exists:topics,id',
+            'material_id'        => 'nullable|exists:materials,id',
             'time_spent_minutes' => 'required|integer|min:1',
         ]);
 
         $log = LearningLog::create([
             'user_id'            => $request->user()->id,
             'topic_id'           => $validated['topic_id'],
+            'material_id'        => $validated['material_id'] ?? null,
             'time_spent_minutes' => $validated['time_spent_minutes'],
             'quiz_score'         => null, // null karena ini log membaca, bukan kuis
         ]);

@@ -52,73 +52,43 @@ class QuizController extends Controller
     public function submit(Request $request, $quizId)
     {
         $request->validate([
-            'answers' => 'required|array'
+            'answers'            => 'required|array',
+            'time_spent_minutes' => 'nullable|integer|min:0', // TAMBAH
         ]);
-
-        try {
-            \Log::info('Quiz submit - Start', ['quiz_id' => $quizId, 'user_id' => $request->user()?->id]);
-
-            $quiz = Quiz::findOrFail($quizId);
-            $questions = $quiz->questions;
-            $user = $request->user();
-
-            $total = $questions->count();
-
-            // Validasi: jika tidak ada soal, tolak lebih awal
-            if ($total === 0) {
-                \Log::warning('Quiz submit - No questions found', ['quiz_id' => $quizId]);
-                return response()->json(['message' => 'Kuis tidak memiliki soal'], 422);
-            }
-
-            \Log::info('Quiz submit - Questions loaded', ['total_questions' => $total]);
-
-            // Hitung jawaban yang benar
-            $correct = 0;
-            foreach ($questions as $question) {
-                // Cast ke string agar cocok dengan key JSON yang selalu string
-                $userAnswer = $request->answers[(string) $question->id] ?? null;
-                if ($userAnswer === $question->correct_answer) {
-                    $correct++;
-                }
-            }
-
-            $score = round(($correct / $total) * 100, 2);
-            \Log::info('Quiz submit - Score calculated', ['score' => $score, 'correct' => $correct, 'total' => $total]);
-
-            // Update Mastery menggunakan Adaptive Engine
-            \Log::info('Quiz submit - Calling updateMastery', ['user_id' => $user->id, 'topic_id' => $quiz->topic_id]);
-            $startTime = microtime(true);
-            
-            $mastery = $this->adaptiveService->updateMastery(
-                $user->id, 
-                $quiz->topic_id, 
-                $score,
-                25 // contoh waktu pengerjaan dalam menit
-            );
-
-            $elapsed = (microtime(true) - $startTime) * 1000;
-            \Log::info('Quiz submit - updateMastery completed', ['elapsed_ms' => $elapsed, 'mastery_level' => $mastery->mastery_level]);
-
-            \Log::info('Quiz submit - Success', ['user_id' => $user->id, 'quiz_id' => $quizId]);
-
-            return response()->json([
-                'message' => 'Kuis selesai',
-                'score' => $score,
-                'correct_answers' => $correct,
-                'total_questions' => $total,
-                'mastery_level' => $mastery->mastery_level,
-                'new_recommendations' => $this->adaptiveService->getRecommendations($user->id)
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Quiz submit - Error', [
-                'quiz_id' => $quizId,
-                'user_id' => $request->user()?->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            throw $e;
+    
+        $quiz      = Quiz::findOrFail($quizId);
+        $questions = $quiz->questions;
+        $user      = $request->user();
+    
+        if (count($questions) === 0) {
+            return response()->json(['message' => 'Kuis tidak memiliki soal'], 422);
         }
+    
+        $correct = 0;
+        foreach ($questions as $question) {
+            $userAnswer = $request->answers[(string) $question->id] ?? null;
+            if ($userAnswer === $question->correct_answer) $correct++;
+        }
+    
+        $total = count($questions);
+        $score = round(($correct / $total) * 100, 2);
+    
+        // Gunakan waktu nyata dari Flutter, fallback 0 jika tidak dikirim
+        $timeSpent = $request->input('time_spent_minutes', 0);
+    
+        $mastery = $this->adaptiveService->updateMastery(
+            $user->id,
+            $quiz->topic_id,
+            $score,
+            $timeSpent, // TIDAK LAGI HARDCODE
+        );
+    
+        return response()->json([
+            'message'         => 'Kuis selesai',
+            'score'           => $score,
+            'correct_answers' => $correct,
+            'total_questions' => $total,
+            'mastery_level'   => $mastery->mastery_level,
+        ]);
     }
 }

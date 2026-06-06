@@ -6,105 +6,147 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\PblProject;
 use App\Models\StudentTopicMastery;
+use App\Models\Topic;
 use Illuminate\Http\Request;
 
 class TeacherController extends Controller
 {
     /**
-     * Daftar semua siswa
+     * GET /guru/dashboard
+     */
+    public function dashboard()
+    {
+        return response()->json([
+            'total_students'   => User::where('role', 'siswa')->count(),
+            'total_projects'   => PblProject::count(),
+            'pending_projects' => PblProject::where('status', 'submitted')->count(),
+            'total_topics'     => Topic::count(), // TAMBAH: dipakai stat card Flutter
+        ]);
+    }
+
+    /**
+     * GET /guru/students
+     * Hanya kirim field yang dibutuhkan + avg_mastery untuk TeacherAdaptiveScreen
      */
     public function students()
     {
         $students = User::where('role', 'siswa')
-            ->withCount(['pblProjects', 'studentMasteries'])
+            ->withCount('pblProjects')
             ->with('studentMasteries')
             ->get()
-            ->map(function ($student) {
-                $avgMastery = $student->studentMasteries->avg('mastery_level') ?? 0;
-                $student->avg_mastery = round($avgMastery, 2);
-                return $student;
-            });
+            ->map(fn($s) => [
+                'id'         => $s->id,
+                'name'       => $s->name,
+                'email'      => $s->email,
+                'avg_mastery' => round($s->studentMasteries->avg('mastery_level') ?? 0, 1),
+                // dipakai StudentListScreen: jumlah topik yang sudah dipelajari
+                'student_masteries_count' => $s->studentMasteries->count(),
+            ]);
 
         return response()->json($students);
     }
 
     /**
-     * Detail progress satu siswa
+     * GET /guru/students/{studentId}/progress
+     * Format masteries disesuaikan dengan StudentProgressScreen Flutter
      */
     public function studentProgress($studentId)
     {
         $student = User::where('role', 'siswa')->findOrFail($studentId);
 
         $masteries = StudentTopicMastery::where('user_id', $studentId)
-            ->with('topic')
-            ->get();
+            ->with('topic:id,title')
+            ->orderByDesc('mastery_level')
+            ->get()
+            ->map(fn($m) => [
+                'topic_title'   => $m->topic?->title ?? '-', // Flutter akses m['topic_title']
+                'mastery_level' => (float) $m->mastery_level,
+                'attempts'      => $m->attempts,
+                'last_accessed' => $m->last_accessed?->diffForHumans(),
+            ]);
+
+        $avgMastery = $masteries->avg('mastery_level') ?? 0;
+
+        // PERBAIKAN: pbl_level dari mastery, bukan score proyek
+        $pblLevel = match(true) {
+            $avgMastery >= 85 => 'Lanjutan',
+            $avgMastery >= 65 => 'Menengah',
+            default           => 'Dasar',
+        };
 
         $projects = PblProject::where('user_id', $studentId)
             ->latest()
-            ->get();
-
-        $avgMastery = $masteries->avg('mastery_level') ?? 0;
-        $pblLevel = $projects->where('score', '!=', null)->avg('score') ?? 0;
+            ->get()
+            ->map(fn($p) => [
+                'id'          => $p->id,
+                'title'       => $p->title,
+                'description' => $p->description,
+                'level'       => $p->level,
+                'status'      => $p->status,
+                'score'       => $p->score,
+                'feedback'    => $p->feedback,
+                'submitted_at' => $p->created_at?->toDateString(),
+            ]);
 
         return response()->json([
-            'student' => $student,
-            'average_mastery' => round($avgMastery, 2),
-            'masteries' => $masteries,
-            'pbl_projects' => $projects,
-            'pbl_level' => round($pblLevel, 2),
+            'student'         => ['id' => $student->id, 'name' => $student->name],
+            'average_mastery' => round($avgMastery, 1),
+            'pbl_level'       => $pblLevel,
+            'masteries'       => $masteries,
+            'pbl_projects'    => $projects,
         ]);
     }
 
     /**
-     * Berikan nilai dan feedback proyek PBL
-     */
-    public function gradeProject(Request $request, $projectId)
-    {
-        $request->validate([
-            'score' => 'required|integer|min:0|max:100',
-            'feedback' => 'required|string',
-        ]);
-
-        $project = PblProject::findOrFail($projectId);
-        $project->update([
-            'score' => $request->score,
-            'feedback' => $request->feedback,
-            'status' => 'graded',
-        ]);
-
-        return response()->json([
-            'message' => 'Nilai dan feedback berhasil disimpan',
-            'project' => $project
-        ]);
-    }
-
-    /**
-     * Daftar semua proyek yang belum dinilai
+     * GET /guru/pending-projects
      */
     public function pendingProjects()
     {
         $projects = PblProject::where('status', 'submitted')
-            ->with('user')
+            ->with('user:id,name,email')
             ->latest()
-            ->get();
+            ->get()
+            ->map(fn($p) => [
+                'id'          => $p->id,
+                'title'       => $p->title,
+                'description' => $p->description,
+                'level'       => $p->level,
+                'status'      => $p->status,
+                'user'        => $p->user,
+                'submitted_at' => $p->created_at?->toDateString(),
+            ]);
 
         return response()->json($projects);
     }
 
     /**
-     * Dashboard Guru (Ringkasan)
+     * POST /guru/projects/{projectId}/grade
      */
-    public function dashboard()
+    public function gradeProject(Request $request, $projectId)
     {
-        $totalStudents = User::where('role', 'siswa')->count();
-        $totalProjects = PblProject::count();
-        $pendingProjects = PblProject::where('status', 'submitted')->count();
+        $request->validate([
+            'score'    => 'required|integer|min:0|max:100',
+            'feedback' => 'required|string|max:1000',
+        ]);
+
+        $project = PblProject::findOrFail($projectId);
+
+        // Pastikan hanya proyek yang belum dinilai yang bisa digrade
+        if ($project->status === 'graded') {
+            return response()->json([
+                'message' => 'Proyek ini sudah pernah dinilai',
+            ], 422);
+        }
+
+        $project->update([
+            'score'    => $request->score,
+            'feedback' => $request->feedback,
+            'status'   => 'graded',
+        ]);
 
         return response()->json([
-            'total_students' => $totalStudents,
-            'total_projects' => $totalProjects,
-            'pending_projects' => $pendingProjects,
-            'message' => 'Selamat datang di Dashboard Guru'
+            'message' => 'Nilai dan feedback berhasil disimpan',
+            'project' => $project,
         ]);
     }
 }
