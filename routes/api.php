@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\MasteryController;
 use App\Http\Controllers\Api\NotificationController; 
 use App\Http\Controllers\Api\InteractionLogController; 
 use App\Http\Controllers\Api\DiscussionController;
+use App\Http\Controllers\Api\ExportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -116,12 +117,13 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    // Hanya daftarkan route notifikasi jika controller tersedia
-    if (class_exists(NotificationController::class)) {
-        Route::get('/notifications',                     [NotificationController::class, 'index']);
-        Route::post('/notifications/{id}/read',          [NotificationController::class, 'markAsRead']);
-        Route::post('/notifications/read-all',           [NotificationController::class, 'markAllAsRead']);
-    }
+    // Menjadi langsung:
+    Route::get('/notifications',          [NotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all',  [NotificationController::class, 'markAllAsRead']);
+    
+    // Tambah export siswa:
+    Route::get('/export/my-progress', [ExportController::class, 'myProgress']);
 
     /*
     |--------------------------------------------------------------------------
@@ -164,68 +166,37 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::prefix('guru')->group(function () {
+        Route::middleware('role:guru')->prefix('guru')->group(function () {
 
-        // Dashboard statistik guru
         Route::get('/dashboard',  [TeacherController::class, 'dashboard']);
-
-        // Daftar siswa & progress individual
-        Route::get('/students',                            [TeacherController::class, 'students']);
-        Route::get('/students/{studentId}/progress',      [TeacherController::class, 'studentProgress']);
-
-        // BARU: detail mastery per siswa untuk guru (sama seperti /mastery tapi bisa lihat siswa lain)
-        Route::get('/students/{studentId}/mastery',       [TeacherController::class, 'studentMastery']);
-
-        // Penilaian proyek PBL
-        Route::get('/pending-projects',                   [TeacherController::class, 'pendingProjects']);
-        Route::post('/projects/{projectId}/grade',        [TeacherController::class, 'gradeProject']);
-
-        // BARU: semua proyek (tidak hanya pending)
-        Route::get('/all-projects',                       [TeacherController::class, 'allProjects']);
-
-        // BARU: kirim notifikasi ke siswa tertentu
-        Route::post('/students/{studentId}/notify',       [TeacherController::class, 'notifyStudent']);
-
-        // BARU: ringkasan interaksi siswa untuk guru (dipakai di TeacherAdaptiveScreen)
+        Route::get('/students',   [TeacherController::class, 'students']);
+        Route::get('/students/{studentId}/progress',     [TeacherController::class, 'studentProgress']);
+        Route::get('/students/{studentId}/mastery',      [TeacherController::class, 'studentMastery']);
         Route::get('/students/{studentId}/interactions', [InteractionLogController::class, 'studentSummary']);
+        Route::get('/pending-projects',                  [TeacherController::class, 'pendingProjects']);
+        Route::post('/projects/{projectId}/grade',       [TeacherController::class, 'gradeProject']);
+        Route::get('/all-projects',                      [TeacherController::class, 'allProjects']);
+        Route::post('/students/{studentId}/notify',      [TeacherController::class, 'notifyStudent']);
+        Route::post('/discussions/{id}/pin',             [DiscussionController::class, 'pin']);
 
-        /*
-        |----------------------------------------------------------------------
-        | Content Management (Manajemen Konten oleh Guru)
-        |----------------------------------------------------------------------
-        */
+        // Export
+        Route::get('/export/students', [ExportController::class, 'allStudents']);
 
         Route::prefix('content')->group(function () {
-
-            // Topik
-            Route::get('/topics',                         [ContentController::class, 'getTopics']);
-            Route::post('/topics',                        [ContentController::class, 'storeTopic']);
-
-            // BARU: edit & hapus topik
-            Route::put('/topics/{id}',                    [ContentController::class, 'updateTopic']);
-            Route::delete('/topics/{id}',                 [ContentController::class, 'destroyTopic']);
-
-            // Materi
-            Route::post('/materials',                     [ContentController::class, 'storeMaterial']);
-
-            // BARU: edit & hapus materi
-            Route::put('/materials/{id}',                 [ContentController::class, 'updateMaterial']);
-            Route::delete('/materials/{id}',              [ContentController::class, 'destroyMaterial']);
-
-            // Kuis
-            Route::get('/topics/{topicId}/quizzes',       [ContentController::class, 'getQuizzesByTopic']);
-            Route::post('/quizzes',                       [ContentController::class, 'storeQuiz']);
-
-            // BARU: edit & hapus kuis
-            Route::put('/quizzes/{id}',                   [ContentController::class, 'updateQuiz']);
-            Route::delete('/quizzes/{id}',                [ContentController::class, 'destroyQuiz']);
-
-            // Pertanyaan kuis
-            Route::post('/quizzes/{quizId}/questions',    [ContentController::class, 'storeQuizQuestion']);
-
-            // BARU: edit & hapus pertanyaan
-            Route::put('/questions/{id}',                 [ContentController::class, 'updateQuestion']);
-            Route::delete('/questions/{id}',              [ContentController::class, 'destroyQuestion']);
+            Route::get('/topics',                      [ContentController::class, 'getTopics']);
+            Route::post('/topics',                     [ContentController::class, 'storeTopic']);
+            Route::put('/topics/{id}',                 [ContentController::class, 'updateTopic']);
+            Route::delete('/topics/{id}',              [ContentController::class, 'destroyTopic']);
+            Route::post('/materials',                  [ContentController::class, 'storeMaterial']);
+            Route::put('/materials/{id}',              [ContentController::class, 'updateMaterial']);
+            Route::delete('/materials/{id}',           [ContentController::class, 'destroyMaterial']);
+            Route::get('/topics/{topicId}/quizzes',    [ContentController::class, 'getQuizzesByTopic']);
+            Route::post('/quizzes',                    [ContentController::class, 'storeQuiz']);
+            Route::put('/quizzes/{id}',                [ContentController::class, 'updateQuiz']);
+            Route::delete('/quizzes/{id}',             [ContentController::class, 'destroyQuiz']);
+            Route::post('/quizzes/{quizId}/questions', [ContentController::class, 'storeQuizQuestion']);
+            Route::put('/questions/{id}',              [ContentController::class, 'updateQuestion']);
+            Route::delete('/questions/{id}',           [ContentController::class, 'destroyQuestion']);
         });
     });
-});
+}); 

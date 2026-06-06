@@ -69,4 +69,42 @@ class NotificationController extends Controller
 
         return response()->json(['message' => 'Semua notifikasi sudah dibaca']);
     }
+
+   public function createIfNotExists(int $userId, array $payload): void
+    {
+        $flag = $payload['data']['flag'] ?? null;
+        if (!$flag) return;
+    
+        $exists = AppNotification::where('user_id', $userId)
+            ->where('type', $payload['type'])
+            ->whereJsonContains('data->flag', $flag)
+            ->when(isset($payload['data']['topic_id']), fn($q) =>
+                $q->whereJsonContains('data->topic_id', $payload['data']['topic_id'])
+            )
+            ->when(isset($payload['data']['material_id']), fn($q) =>
+                $q->whereJsonContains('data->material_id', $payload['data']['material_id'])
+            )
+            ->when(isset($payload['data']['project_id']), fn($q) =>
+                $q->whereJsonContains('data->project_id', $payload['data']['project_id'])
+            )
+            ->exists();
+    
+        if (!$exists) {
+            AppNotification::create([
+                'user_id' => $userId,
+                'type'    => $payload['type'],
+                'title'   => $payload['title'],
+                'message' => $payload['message'],
+                'is_read' => false,
+                'data'    => $payload['data'],
+            ]);
+        }
+    }
+    
+    // createIfPublic adalah alias untuk createIfNotExists
+    // dipanggil dari Command agar lebih eksplisit
+    public function createIfPublic(int $userId, array $payload): void
+    {
+        $this->createIfNotExists($userId, $payload);
+    }
 }
