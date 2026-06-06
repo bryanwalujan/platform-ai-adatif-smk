@@ -118,35 +118,65 @@ class TeacherController extends Controller
 
         return response()->json($projects);
     }
-
+    
     /**
      * POST /guru/projects/{projectId}/grade
      */
     public function gradeProject(Request $request, $projectId)
     {
         $request->validate([
-            'score'    => 'required|integer|min:0|max:100',
-            'feedback' => 'required|string|max:1000',
+            'feedback'         => 'required|string|max:2000',
+            'rubric_scores'    => 'required|array',
+            'rubric_scores.kreativitas'  => 'required|integer|min:0|max:100',
+            'rubric_scores.teknis'       => 'required|integer|min:0|max:100',
+            'rubric_scores.konsep'       => 'required|integer|min:0|max:100',
+            'rubric_scores.presentasi'   => 'required|integer|min:0|max:100',
+            'rubric_feedback'  => 'nullable|array',
         ]);
 
         $project = PblProject::findOrFail($projectId);
 
-        // Pastikan hanya proyek yang belum dinilai yang bisa digrade
         if ($project->status === 'graded') {
-            return response()->json([
-                'message' => 'Proyek ini sudah pernah dinilai',
-            ], 422);
+            return response()->json(['message' => 'Proyek sudah pernah dinilai'], 422);
         }
 
-        $project->update([
-            'score'    => $request->score,
-            'feedback' => $request->feedback,
-            'status'   => 'graded',
-        ]);
+        // Hitung skor total dengan weighted average
+        $project->rubric_scores   = $request->rubric_scores;
+        $project->rubric_feedback = $request->rubric_feedback;
+        $project->feedback        = $request->feedback;
+        $project->score           = $project->calculateWeightedScore();
+        $project->status          = 'graded';
+        $project->graded_at       = now();
+        $project->save();
+
+        // Kirim notifikasi ke siswa
+        app(\App\Services\NotificationService::class)->sendToStudent(
+            studentId: $project->user_id,
+            title:     '✅ Proyek PBL Sudah Dinilai',
+            message:   "Proyek \"{$project->title}\" mendapat nilai {$project->score}. "
+                     . "Lihat feedback dari guru!",
+        );
 
         return response()->json([
-            'message' => 'Nilai dan feedback berhasil disimpan',
+            'message' => 'Penilaian berhasil disimpan',
+            'score'   => $project->score,
             'project' => $project,
         ]);
+    }
+
+    public function notifyStudent(Request $request, $studentId)
+    {
+        $request->validate([
+            'title'   => 'required|string|max:255',
+            'message' => 'required|string',
+        ]);
+
+        app(\App\Services\NotificationService::class)->sendToStudent(
+            studentId: (int) $studentId,
+            title:     $request->title,
+            message:   $request->message,
+        );
+
+        return response()->json(['message' => 'Notifikasi berhasil dikirim']);
     }
 }

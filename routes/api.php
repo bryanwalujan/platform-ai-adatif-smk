@@ -101,6 +101,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/pbl-projects',           [PblProjectController::class, 'index']);
     Route::post('/pbl-projects',          [PblProjectController::class, 'store']);
+    Route::get('/pbl-projects/rubric', [PblProjectController::class, 'getRubric']);
 
     // BARU: detail & hapus proyek milik sendiri
     Route::get('/pbl-projects/{id}',      [PblProjectController::class, 'show']);

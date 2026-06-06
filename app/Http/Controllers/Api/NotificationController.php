@@ -1,58 +1,69 @@
 <?php
+// app/Http/Controllers/Api/NotificationController.php
 
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Notification;
+use App\Models\AppNotification;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
+    protected NotificationService $notifService;
+
+    public function __construct(NotificationService $notifService)
+    {
+        $this->notifService = $notifService;
+    }
+
     /**
      * GET /notifications
-     * Menggantikan data hardcoded di NotificationScreen Flutter.
      */
     public function index(Request $request)
     {
-        $notifications = Notification::where('user_id', $request->user()->id)
+        // Auto-generate notifikasi dari AI sebelum kirim ke Flutter
+        $this->notifService->generateAdaptiveNotifications(
+            $request->user()->id
+        );
+
+        $notifications = AppNotification::where('user_id', $request->user()->id)
             ->latest()
             ->get()
             ->map(fn($n) => [
                 'id'         => $n->id,
-                'type'       => $n->type,       // 'recommendation' | 'feedback' | 'reminder'
+                'type'       => $n->type,
                 'title'      => $n->title,
                 'message'    => $n->message,
-                'is_read'    => (bool) $n->is_read,
-                'created_at' => $n->created_at?->diffForHumans(), // "2 jam lalu"
+                'is_read'    => $n->is_read,
+                'data'       => $n->data,
+                'created_at' => $n->created_at->diffForHumans(),
             ]);
 
         return response()->json([
-            'notifications'  => $notifications,
-            'unread_count'   => $notifications->where('is_read', false)->count(),
+            'notifications' => $notifications,
+            'unread_count'  => $notifications->where('is_read', false)->count(),
         ]);
     }
 
     /**
      * POST /notifications/{id}/read
-     * Tandai satu notifikasi sebagai sudah dibaca.
      */
     public function markAsRead(Request $request, $id)
     {
-        $notification = Notification::where('user_id', $request->user()->id)
-            ->findOrFail($id);
-
-        $notification->update(['is_read' => true]);
+        AppNotification::where('user_id', $request->user()->id)
+            ->findOrFail($id)
+            ->update(['is_read' => true]);
 
         return response()->json(['message' => 'Notifikasi ditandai sudah dibaca']);
     }
 
     /**
      * POST /notifications/read-all
-     * Tandai semua notifikasi sebagai sudah dibaca.
      */
     public function markAllAsRead(Request $request)
     {
-        Notification::where('user_id', $request->user()->id)
+        AppNotification::where('user_id', $request->user()->id)
             ->where('is_read', false)
             ->update(['is_read' => true]);
 

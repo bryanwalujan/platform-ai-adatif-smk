@@ -62,35 +62,56 @@ class AdaptiveEngineService
             ->with('topic:id,title')
             ->orderBy('mastery_level')
             ->get();
-
+    
+        // TAMBAH: ambil data materi yang sering diulang sebagai sinyal kesulitan
+        $repeatedMaterials = \App\Models\InteractionLog::where('user_id', $userId)
+            ->where('action', 'repeat_material')
+            ->where('open_count', '>=', 3) // diulang 3x+ = kemungkinan kesulitan
+            ->with('topic:id,title')
+            ->get()
+            ->groupBy('topic_id');
+    
         $recommendations = [];
-
+    
         foreach ($masteries as $m) {
-            if (! $m->topic) continue; // skip jika topik dihapus
-
+            if (!$m->topic) continue;
+    
+            $topicId = $m->topic->id;
+    
+            // Cek apakah ada materi yang sering diulang di topik ini
+            $hasRepeatedMaterial = $repeatedMaterials->has($topicId);
+    
             if ($m->mastery_level < 45) {
                 $recommendations[] = [
                     'type'     => 'review',
                     'priority' => 'high',
                     'message'  => 'Kamu sangat perlu mengulang topik ini',
-                    'topic'    => ['id' => $m->topic->id, 'title' => $m->topic->title],
+                    'topic'    => ['id' => $topicId, 'title' => $m->topic->title],
                 ];
             } elseif ($m->mastery_level < 75) {
                 $recommendations[] = [
                     'type'     => 'practice',
                     'priority' => 'medium',
                     'message'  => 'Latihan lebih banyak di topik ini akan sangat membantu',
-                    'topic'    => ['id' => $m->topic->id, 'title' => $m->topic->title],
+                    'topic'    => ['id' => $topicId, 'title' => $m->topic->title],
+                ];
+            } elseif ($hasRepeatedMaterial) {
+                // Mastery tinggi tapi ada materi yang sering diulang
+                // Kemungkinan siswa mengulang untuk memperkuat pemahaman
+                $recommendations[] = [
+                    'type'     => 'review',
+                    'priority' => 'medium',
+                    'message'  => 'Kamu sering membuka ulang materi ini — coba kerjakan kuis untuk mengukur pemahamanmu',
+                    'topic'    => ['id' => $topicId, 'title' => $m->topic->title],
                 ];
             }
         }
-
-        // Sarankan topik baru jika rekomendasi review/practice kurang dari 2
+    
         if (count($recommendations) < 2) {
             $nextTopic = Topic::whereDoesntHave('studentMasteries', function ($q) use ($userId) {
                 $q->where('user_id', $userId);
             })->first();
-
+    
             if ($nextTopic) {
                 $recommendations[] = [
                     'type'     => 'new',
@@ -100,7 +121,7 @@ class AdaptiveEngineService
                 ];
             }
         }
-
+    
         return $recommendations;
     }
 
