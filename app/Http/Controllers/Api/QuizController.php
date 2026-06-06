@@ -4,91 +4,163 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quiz;
-use App\Models\QuizQuestion;
+use App\Models\TestResult;
 use App\Services\AdaptiveEngineService;
 use Illuminate\Http\Request;
 
 class QuizController extends Controller
 {
-    protected $adaptiveService;
+    protected AdaptiveEngineService $adaptiveService;
 
     public function __construct(AdaptiveEngineService $adaptiveService)
     {
         $this->adaptiveService = $adaptiveService;
     }
 
-    // Ambil daftar kuis berdasarkan topic
     public function getByTopic($topicId)
     {
-        $quizzes = Quiz::where('topic_id', $topicId)->withCount('questions')->get();
+        $quizzes = Quiz::where('topic_id', $topicId)
+            ->withCount('questions')
+            ->get()
+            ->map(fn($q) => [
+                'id'              => $q->id,
+                'title'           => $q->title,
+                'type'            => $q->type,   // TAMBAH agar Flutter tahu tipenya
+                'passing_score'   => $q->passing_score,
+                'questions_count' => $q->questions_count,
+            ]);
+
         return response()->json($quizzes);
     }
 
-    // Ambil soal kuis
     public function getQuestions($quizId)
     {
         $quiz = Quiz::with('questions')->findOrFail($quizId);
 
-        // Format questions agar options selalu array, bukan JSON string
-        $questions = $quiz->questions->map(function ($q) {
-            return [
-                'id'             => $q->id,
-                'question'       => $q->question,
-                // decode jika masih string, langsung pakai jika sudah array
-                'options'        => is_string($q->options)
-                                        ? json_decode($q->options, true)
-                                        : ($q->options ?? []),
-                'correct_answer' => $q->correct_answer,
-            ];
-        });
+        $questions = $quiz->questions->map(fn($q) => [
+            'id'             => $q->id,
+            'question'       => $q->question,
+            'options'        => is_string($q->options)
+                                    ? json_decode($q->options, true)
+                                    : ($q->options ?? []),
+            'correct_answer' => $q->correct_answer,
+            'point'          => $q->point,
+        ]);
 
         return response()->json([
-            'quiz'      => ['id' => $quiz->id, 'title' => $quiz->title],
+            'quiz' => [
+                'id'            => $quiz->id,
+                'title'         => $quiz->title,
+                'type'          => $quiz->type,   // TAMBAH
+                'passing_score' => $quiz->passing_score,
+                'time_limit'    => $quiz->time_limit_minutes,
+            ],
             'questions' => $questions,
         ]);
     }
 
-    // Submit jawaban kuis
     public function submit(Request $request, $quizId)
     {
         $request->validate([
             'answers'            => 'required|array',
-            'time_spent_minutes' => 'nullable|integer|min:0', // TAMBAH
+            'time_spent_minutes' => 'nullable|integer|min:0',
         ]);
-    
-        $quiz      = Quiz::findOrFail($quizId);
+
+        $quiz      = Quiz::with('questions')->findOrFail($quizId);
         $questions = $quiz->questions;
         $user      = $request->user();
-    
-        if (count($questions) === 0) {
+
+        if ($questions->isEmpty()) {
             return response()->json(['message' => 'Kuis tidak memiliki soal'], 422);
         }
-    
-        $correct = 0;
+
+        // Hitung skor dengan bobot point per soal
+        $totalPoints   = $questions->sum('point');
+        $earnedPoints  = 0;
+        $correctCount  = 0;
+
         foreach ($questions as $question) {
             $userAnswer = $request->answers[(string) $question->id] ?? null;
-            if ($userAnswer === $question->correct_answer) $correct++;
+            if ($userAnswer === $question->correct_answer) {
+                $earnedPoints += $question->point;
+                $correctCount++;
+            }
         }
-    
-        $total = count($questions);
-        $score = round(($correct / $total) * 100, 2);
-    
-        // Gunakan waktu nyata dari Flutter, fallback 0 jika tidak dikirim
-        $timeSpent = $request->input('time_spent_minutes', 0);
-    
-        $mastery = $this->adaptiveService->updateMastery(
-            $user->id,
-            $quiz->topic_id,
-            $score,
-            $timeSpent, // TIDAK LAGI HARDCODE
-        );
-    
+
+        $score       = $totalPoints > 0
+                        ? round(($earnedPoints / $totalPoints) * 100, 2)
+                        : 0;
+        $timeSpent   = $request->input('time_spent_minutes', 0);
+        $passed      = $score >= $quiz->passing_score;
+
+        // Simpan ke test_results jika pre/post test
+        if (in_array($quiz->type, ['pre_test', 'post_test'])) {
+            // Cek apakah sudah pernah mengerjakan
+            $existing = TestResult::where('user_id', $user->id)
+                ->where('topic_id', $quiz->topic_id)
+                ->where('type', $quiz->type)
+                ->first();
+
+            if ($existing) {
+                return response()->json([
+                    'message' => $quiz->type === 'pre_test'
+                        ? 'Kamu sudah mengerjakan pre-test topik ini'
+                        : 'Kamu sudah mengerjakan post-test topik ini',
+                    'score'   => $existing->score,
+                ], 422);
+            }
+
+            TestResult::create([
+                'user_id'            => $user->id,
+                'quiz_id'            => $quiz->id,
+                'topic_id'           => $quiz->topic_id,
+                'type'               => $quiz->type,
+                'score'              => $score,
+                'correct_answers'    => $correctCount,
+                'total_questions'    => $questions->count(),
+                'time_spent_minutes' => $timeSpent,
+            ]);
+        }
+
+        // Update mastery hanya untuk kuis reguler dan post-test
+        // Pre-test tidak mempengaruhi mastery (hanya mengukur kondisi awal)
+        if ($quiz->type !== 'pre_test') {
+            $this->adaptiveService->updateMastery(
+                $user->id,
+                $quiz->topic_id,
+                $score,
+                $timeSpent,
+            );
+        }
+
         return response()->json([
             'message'         => 'Kuis selesai',
+            'quiz_type'       => $quiz->type,
             'score'           => $score,
-            'correct_answers' => $correct,
-            'total_questions' => $total,
-            'mastery_level'   => $mastery->mastery_level,
+            'correct_answers' => $correctCount,
+            'total_questions' => $questions->count(),
+            'passed'          => $passed,
+            'passing_score'   => $quiz->passing_score,
+            'mastery_updated' => $quiz->type !== 'pre_test',
         ]);
+    }
+
+    // BARU: riwayat hasil pre/post test siswa
+    public function myResults(Request $request)
+    {
+        $results = TestResult::where('user_id', $request->user()->id)
+            ->with('topic:id,title', 'quiz:id,title,type')
+            ->latest()
+            ->get()
+            ->map(fn($r) => [
+                'id'          => $r->id,
+                'topic'       => $r->topic?->title,
+                'quiz_title'  => $r->quiz?->title,
+                'type'        => $r->type,
+                'score'       => $r->score,
+                'created_at'  => $r->created_at->toDateString(),
+            ]);
+
+        return response()->json($results);
     }
 }

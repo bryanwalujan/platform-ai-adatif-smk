@@ -38,48 +38,55 @@ class ContentController extends Controller
 
     // ==================== MATERI ====================
     public function storeMaterial(Request $request)
-{
-    $request->validate([
-        'topic_id'         => 'required|exists:topics,id',
-        'title'            => 'required|string',
-        'content'          => 'required|string',
-        'video_url'        => 'nullable|string',
-        'duration_minutes' => 'nullable|integer',
-        'file'             => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:15360',
-    ]);
-
-    $data = $request->only(['topic_id', 'title', 'content', 'video_url', 'duration_minutes']);
-
-    if ($request->hasFile('file')) {
-        $file = $request->file('file');
-        $path = $file->store('materials', 'public');
-
-        $data['file_path'] = $path;
-        $data['file_name'] = $file->getClientOriginalName();
-        $data['file_type'] = $file->getClientMimeType();
+    {
+        $request->validate([
+            'topic_id'         => 'required|exists:topics,id',
+            'title'            => 'required|string',
+            'content'          => 'required|string',
+            'video_url'        => 'nullable|string',
+            'duration_minutes' => 'nullable|integer',
+            'file'             => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:15360',
+        ]);
+    
+        $data = $request->only(['topic_id', 'title', 'content', 'video_url', 'duration_minutes']);
+    
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $path = $file->store('materials', 'public');
+    
+            $data['file_path'] = $path;
+            $data['file_name'] = $file->getClientOriginalName();
+            $data['file_type'] = $file->getClientMimeType();
+        }
+    
+        $material = Material::create($data);
+    
+        return response()->json([
+            'message'  => 'Materi berhasil dibuat',
+            'material' => $material,
+        ], 201);
     }
-
-    $material = Material::create($data);
-
-    return response()->json([
-        'message'  => 'Materi berhasil dibuat',
-        'material' => $material,
-    ], 201);
-}
 
     // ==================== KUIS ====================
     public function storeQuiz(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'topic_id'           => 'required|exists:topics,id',
-            'title'              => 'required|string',
-            'time_limit_minutes' => 'nullable|integer',
-            'passing_score'      => 'nullable|integer',
+            'title'              => 'required|string|max:255',
+            'type'               => 'nullable|in:regular,pre_test,post_test',
+            'passing_score'      => 'nullable|integer|min:0|max:100',
+            'time_limit_minutes' => 'nullable|integer|min:1',
         ]);
 
-        $quiz = Quiz::create($request->all());
+        $quiz = Quiz::create([
+            'topic_id'           => $validated['topic_id'],
+            'title'              => $validated['title'],
+            'type'               => $validated['type'] ?? 'regular',
+            'passing_score'      => $validated['passing_score'] ?? 70,
+            'time_limit_minutes' => $validated['time_limit_minutes'] ?? 30,
+        ]);
 
-        return response()->json(['message' => 'Kuis berhasil dibuat', 'quiz' => $quiz], 201);
+        return response()->json($quiz, 201);
     }
 
     // ==================== SOAL KUIS ====================
