@@ -9,8 +9,9 @@ use App\Http\Controllers\Api\PblProjectController;
 use App\Http\Controllers\Api\LearningLogController;
 use App\Http\Controllers\Api\TeacherController;
 use App\Http\Controllers\Api\ContentController;
-use App\Http\Controllers\Api\MasteryController;   // BARU: untuk endpoint /mastery
-use App\Http\Controllers\Api\NotificationController; // BARU: untuk notifikasi
+use App\Http\Controllers\Api\MasteryController;   
+use App\Http\Controllers\Api\NotificationController; 
+use App\Http\Controllers\Api\InteractionLogController; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -139,6 +140,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/progress-report', [RecommendationController::class, 'progressReport']);
 
+    // BARU: endpoint untuk mencatat interaksi siswa (dipakai di TeacherAdaptiveScreen)
+    Route::post('/interaction-logs',          [InteractionLogController::class, 'store']);
+    Route::get('/interaction-logs/summary',   [InteractionLogController::class, 'summary']);
+
     /*
     |--------------------------------------------------------------------------
     | Guru Routes
@@ -168,6 +173,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // BARU: kirim notifikasi ke siswa tertentu
         Route::post('/students/{studentId}/notify',       [TeacherController::class, 'notifyStudent']);
+
+        // BARU: ringkasan interaksi siswa untuk guru (dipakai di TeacherAdaptiveScreen)
+        Route::get('/students/{studentId}/interactions', [InteractionLogController::class, 'studentSummary']);
 
         /*
         |----------------------------------------------------------------------
