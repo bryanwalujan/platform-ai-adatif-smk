@@ -59,10 +59,15 @@ class TeacherController extends Controller
             ->orderByDesc('mastery_level')
             ->get()
             ->map(fn($m) => [
-                'topic_title'   => $m->topic?->title ?? '-', // Flutter akses m['topic_title']
+                'topic_title'   => $m->topic?->title ?? '-',
                 'mastery_level' => (float) $m->mastery_level,
                 'attempts'      => $m->attempts,
-                'last_accessed' => $m->last_accessed?->diffForHumans(),
+                // PERBAIKAN: pastikan tidak crash jika last_accessed null atau string
+                'last_accessed' => $m->last_accessed instanceof \Carbon\Carbon
+                                    ? $m->last_accessed->diffForHumans()
+                                    : ($m->last_accessed
+                                        ? \Carbon\Carbon::parse($m->last_accessed)->diffForHumans()
+                                        : '-'),
             ]);
 
         $avgMastery = $masteries->avg('mastery_level') ?? 0;

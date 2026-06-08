@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class StudentTopicMastery extends Model
 {
-    protected $table = 'student_topic_mastery'; // ← explicit, tanpa 's'
+    protected $table = 'student_topic_mastery';
 
     protected $fillable = [
         'user_id',
@@ -14,6 +14,12 @@ class StudentTopicMastery extends Model
         'mastery_level',
         'attempts',
         'last_accessed',
+    ];
+
+    // TAMBAH: cast last_accessed ke Carbon agar bisa pakai diffForHumans()
+    protected $casts = [
+        'last_accessed' => 'datetime',
+        'mastery_level' => 'float',
     ];
 
     public function user()
