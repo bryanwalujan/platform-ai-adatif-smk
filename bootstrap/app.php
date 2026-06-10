@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,7 +13,6 @@ return Application::configure(basePath: dirname(__DIR__))
         health:   '/up',
     )
     ->withCommands([
-        // TAMBAH: daftarkan command AI proaktif
         \App\Console\Commands\SendAdaptiveReminders::class,
     ])
     ->withMiddleware(function (Middleware $middleware) {
@@ -23,7 +23,26 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\CheckRole::class,
         ]);
         $middleware->statefulApi();
+
+        // TAMBAH: API request yang tidak terautentikasi
+        // kembalikan JSON bukan redirect ke route 'login'
+        $middleware->redirectGuestsTo(function (Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return null; // return null = kembalikan 401 JSON
+            }
+            return route('login'); // hanya untuk web
+        });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // TAMBAH: handle unauthenticated exception untuk API
+        $exceptions->render(function (
+            \Illuminate\Auth\AuthenticationException $e,
+            Request $request
+        ) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Unauthenticated. Silakan login kembali.',
+                ], 401);
+            }
+        });
     })->create();
