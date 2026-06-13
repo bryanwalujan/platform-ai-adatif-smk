@@ -108,7 +108,7 @@ class TeacherController extends Controller
     public function pendingProjects()
     {
         $projects = PblProject::where('status', 'submitted')
-            ->with('user:id,name,email')
+            ->with('user:id,name,email', 'topic:id,title')
             ->latest()
             ->get()
             ->map(fn($p) => [
@@ -118,9 +118,17 @@ class TeacherController extends Controller
                 'level'       => $p->level,
                 'status'      => $p->status,
                 'user'        => $p->user,
+                'topic'       => $p->topic
+                                    ? ['id' => $p->topic->id, 'title' => $p->topic->title]
+                                    : null,
+                // TAMBAH: dua field ini yang hilang
+                'file_name'   => $p->file_name,
+                'file_url'    => $p->file_path
+                                    ? url(\Illuminate\Support\Facades\Storage::url($p->file_path))
+                                    : null,
                 'submitted_at' => $p->created_at?->toDateString(),
             ]);
-
+    
         return response()->json($projects);
     }
     

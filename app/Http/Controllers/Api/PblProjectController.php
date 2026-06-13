@@ -110,30 +110,27 @@ class PblProjectController extends Controller
     /**
      * Format project untuk response
      */
-    public function pendingProjects()
+    private function formatProject(PblProject $p): array
     {
-        $projects = PblProject::where('status', 'submitted')
-            ->with('user:id,name,email', 'topic:id,title')
-            ->latest()
-            ->get()
-            ->map(fn($p) => [
-                'id'          => $p->id,
-                'title'       => $p->title,
-                'description' => $p->description,
-                'level'       => $p->level,
-                'status'      => $p->status,
-                'user'        => $p->user,
-                'topic'       => $p->topic
+        return [
+            'id'               => $p->id,
+            'title'            => $p->title,
+            'description'      => $p->description,
+            'level'            => $p->level,
+            'status'           => $p->status,
+            'topic'            => $p->topic
                                     ? ['id' => $p->topic->id, 'title' => $p->topic->title]
                                     : null,
-                // TAMBAH: dua field ini yang hilang
-                'file_name'   => $p->file_name,
-                'file_url'    => $p->file_path
+            'file_name'        => $p->file_name,
+            'file_url'         => $p->file_path
                                     ? url(Storage::url($p->file_path))
                                     : null,
-                'submitted_at' => $p->created_at?->toDateString(),
-            ]);
-
-        return response()->json($projects);
+            'score'            => $p->score,
+            'rubric_scores'    => $p->rubric_scores,
+            'rubric_feedback'  => $p->rubric_feedback,
+            'feedback'         => $p->feedback,
+            'graded_at'        => $p->graded_at?->toDateString(),
+            'submitted_at'     => $p->created_at->toDateString(),
+        ];
     }
 }
