@@ -9,17 +9,17 @@ use App\Http\Controllers\Api\PblProjectController;
 use App\Http\Controllers\Api\LearningLogController;
 use App\Http\Controllers\Api\TeacherController;
 use App\Http\Controllers\Api\ContentController;
-use App\Http\Controllers\Api\MasteryController;   
-use App\Http\Controllers\Api\NotificationController; 
-use App\Http\Controllers\Api\InteractionLogController; 
+use App\Http\Controllers\Api\MasteryController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\InteractionLogController;
 use App\Http\Controllers\Api\DiscussionController;
 use App\Http\Controllers\Api\ExportController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
-| Public Routes (tidak perlu login)
+| Public Routes
 |--------------------------------------------------------------------------
 */
 
@@ -28,148 +28,104 @@ Route::post('/login',    [AuthController::class, 'login']);
 
 /*
 |--------------------------------------------------------------------------
-| Protected Routes (wajib login via Sanctum)
+| File Storage Route (public, untuk serve file PBL)
+| Diletakkan di luar auth agar bisa ditest di browser,
+| keamanan dijaga oleh nama file yang random (UUID)
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/files/{path}', function ($path) {
+    $fullPath = storage_path('app/public/' . $path);
+
+    if (!file_exists($fullPath)) {
+        return response()->json(['message' => 'File tidak ditemukan'], 404);
+    }
+
+    $mimeType = mime_content_type($fullPath);
+
+    return response()->file($fullPath, [
+        'Content-Type'                => $mimeType,
+        'Access-Control-Allow-Origin' => '*',
+        'Content-Disposition'         => 'inline; filename="' . basename($fullPath) . '"',
+    ]);
+})->where('path', '.*');
+
+/*
+|--------------------------------------------------------------------------
+| Protected Routes
 |--------------------------------------------------------------------------
 */
 
 Route::middleware('auth:sanctum')->group(function () {
 
-    /*
-    |--------------------------------------------------------------------------
-    | Auth
-    |--------------------------------------------------------------------------
-    */
+    // Auth
+    Route::get('/me',      [AuthController::class, 'me']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 
-    Route::get('/me',     [AuthController::class, 'me']);
-    Route::post('/logout', [AuthController::class, 'logout']); // BARU: logout invalidate token
-
-    /*
-    |--------------------------------------------------------------------------
-    | Topik & Materi
-    |--------------------------------------------------------------------------
-    */
-
+    // Topik & Materi
     Route::get('/topics',         [TopicController::class, 'index']);
     Route::get('/topics/{id}',    [TopicController::class, 'show']);
     Route::get('/materials/{id}', [MaterialController::class, 'show']);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Kuis
-    |--------------------------------------------------------------------------
-    */
+    // Kuis
+    Route::get('/topics/{topicId}/quizzes',   [QuizController::class, 'getByTopic']);
+    Route::get('/quizzes/{quizId}/questions', [QuizController::class, 'getQuestions']);
+    Route::post('/quizzes/{quizId}/submit',   [QuizController::class, 'submit']);
+    Route::get('/quiz-results',               [QuizController::class, 'myResults']);
 
-    Route::get('/topics/{topicId}/quizzes',    [QuizController::class, 'getByTopic']);
-    Route::get('/quizzes/{quizId}/questions',  [QuizController::class, 'getQuestions']);
-    Route::post('/quizzes/{quizId}/submit',    [QuizController::class, 'submit']);
-
-    // BARU: riwayat hasil kuis siswa
-    Route::get('/quiz-results',                [QuizController::class, 'myResults']);
-
-    /*
-    |--------------------------------------------------------------------------
-    | AI Adaptif & Mastery
-    | BARU: endpoint /mastery dipisah dari /recommendations
-    | Sebelumnya MasteryScreen reuse /recommendations yang strukturnya berbeda,
-    | menyebabkan field mastery_level tidak terbaca (bug #2)
-    |--------------------------------------------------------------------------
-    */
-
+    // AI Adaptif & Mastery
     Route::get('/recommendations', [RecommendationController::class, 'index']);
-
-    // BARU: endpoint mastery khusus untuk MasteryScreen (BarChart)
-    // Response: [{ topic_title, mastery_level, attempts, last_accessed }, ...]
     Route::get('/mastery',         [MasteryController::class, 'index']);
-
-    // BARU: trigger manual update mastery (opsional, biasanya dipanggil otomatis saat submit kuis)
     Route::post('/mastery/update', [MasteryController::class, 'update']);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Riwayat Belajar
-    |--------------------------------------------------------------------------
-    */
-
+    // Riwayat Belajar
     Route::get('/learning-logs',  [LearningLogController::class, 'index']);
-
-    // BARU: catat log belajar manual (saat siswa selesai baca materi, bukan hanya kuis)
     Route::post('/learning-logs', [LearningLogController::class, 'store']);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Proyek PBL
-    |--------------------------------------------------------------------------
-    */
-
-    Route::get('/pbl-projects',           [PblProjectController::class, 'index']);
-    Route::post('/pbl-projects',          [PblProjectController::class, 'store']);
+    // Proyek PBL
+    Route::get('/pbl-projects',        [PblProjectController::class, 'index']);
+    Route::post('/pbl-projects',       [PblProjectController::class, 'store']);
     Route::get('/pbl-projects/rubric', [PblProjectController::class, 'getRubric']);
+    Route::get('/pbl-projects/{id}',   [PblProjectController::class, 'show']);
+    Route::delete('/pbl-projects/{id}',[PblProjectController::class, 'destroy']);
 
-    // BARU: detail & hapus proyek milik sendiri
-    Route::get('/pbl-projects/{id}',      [PblProjectController::class, 'show']);
-    Route::delete('/pbl-projects/{id}',   [PblProjectController::class, 'destroy']);
+    // Notifikasi
+    Route::get('/notifications',              [NotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read',   [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all',    [NotificationController::class, 'markAllAsRead']);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Notifikasi
-    | BARU: NotificationScreen saat ini masih hardcoded,
-    | endpoint ini menyiapkan data real dari backend
-    |--------------------------------------------------------------------------
-    */
-
-    // Menjadi langsung:
-    Route::get('/notifications',          [NotificationController::class, 'index']);
-    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
-    Route::post('/notifications/read-all',  [NotificationController::class, 'markAllAsRead']);
-    
-    // Tambah export siswa:
+    // Export siswa
     Route::get('/export/my-progress', [ExportController::class, 'myProgress']);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Profil Siswa
-    | BARU: update profil (nama, foto) dari ProfileScreen
-    |--------------------------------------------------------------------------
-    */
-
+    // Profil
     Route::put('/profile',        [AuthController::class, 'updateProfile']);
     Route::post('/profile/photo', [AuthController::class, 'updatePhoto']);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Progress Report (untuk ProgressReportScreen — generate PDF)
-    | BARU: satu endpoint yang mengembalikan semua data yang dibutuhkan PDF
-    |--------------------------------------------------------------------------
-    */
-
+    // Progress Report
     Route::get('/progress-report', [RecommendationController::class, 'progressReport']);
 
-    // BARU: endpoint untuk mencatat interaksi siswa (dipakai di TeacherAdaptiveScreen)
-    Route::post('/interaction-logs',          [InteractionLogController::class, 'store']);
-    Route::get('/interaction-logs/summary',   [InteractionLogController::class, 'summary']);
+    // Interaction Logs
+    Route::post('/interaction-logs',        [InteractionLogController::class, 'store']);
+    Route::get('/interaction-logs/summary', [InteractionLogController::class, 'summary']);
 
-    // BARU: endpoint untuk diskusi tanya jawab per topik
-    Route::get('/topics/{topicId}/discussions',         [DiscussionController::class, 'index']);
-    Route::post('/topics/{topicId}/discussions',        [DiscussionController::class, 'store']);
-
-    // Detail & interaksi diskusi
-    Route::get('/discussions/{id}',                     [DiscussionController::class, 'show']);
-    Route::post('/discussions/{id}/replies',            [DiscussionController::class, 'reply']);
-    Route::post('/discussions/{id}/resolve',            [DiscussionController::class, 'resolve']);
-    Route::post('/discussions/{id}/replies/{replyId}/best', [DiscussionController::class, 'markBestAnswer']);
+    // Diskusi
+    Route::get('/topics/{topicId}/discussions',              [DiscussionController::class, 'index']);
+    Route::post('/topics/{topicId}/discussions',             [DiscussionController::class, 'store']);
+    Route::get('/discussions/{id}',                          [DiscussionController::class, 'show']);
+    Route::post('/discussions/{id}/replies',                 [DiscussionController::class, 'reply']);
+    Route::post('/discussions/{id}/resolve',                 [DiscussionController::class, 'resolve']);
+    Route::post('/discussions/{id}/replies/{replyId}/best',  [DiscussionController::class, 'markBestAnswer']);
 
     /*
     |--------------------------------------------------------------------------
     | Guru Routes
-    | Semua route guru dibungkus middleware 'role:guru' agar siswa
-    | tidak bisa akses. Buat middleware ini di app/Http/Middleware/CheckRole.php
     |--------------------------------------------------------------------------
     */
 
-        Route::middleware('role:guru')->prefix('guru')->group(function () {
+    Route::middleware('role:guru')->prefix('guru')->group(function () {
 
-        Route::get('/dashboard',  [TeacherController::class, 'dashboard']);
-        Route::get('/students',   [TeacherController::class, 'students']);
+        Route::get('/dashboard',                         [TeacherController::class, 'dashboard']);
+        Route::get('/students',                          [TeacherController::class, 'students']);
         Route::get('/students/{studentId}/progress',     [TeacherController::class, 'studentProgress']);
         Route::get('/students/{studentId}/mastery',      [TeacherController::class, 'studentMastery']);
         Route::get('/students/{studentId}/interactions', [InteractionLogController::class, 'studentSummary']);
@@ -178,25 +134,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/all-projects',                      [TeacherController::class, 'allProjects']);
         Route::post('/students/{studentId}/notify',      [TeacherController::class, 'notifyStudent']);
         Route::post('/discussions/{id}/pin',             [DiscussionController::class, 'pin']);
-
-        // Export
-        Route::get('/export/students', [ExportController::class, 'allStudents']);
+        Route::get('/export/students',                   [ExportController::class, 'allStudents']);
 
         Route::prefix('content')->group(function () {
-            Route::get('/topics',                      [ContentController::class, 'getTopics']);
-            Route::post('/topics',                     [ContentController::class, 'storeTopic']);
-            Route::put('/topics/{id}',                 [ContentController::class, 'updateTopic']);
-            Route::delete('/topics/{id}',              [ContentController::class, 'destroyTopic']);
-            Route::post('/materials',                  [ContentController::class, 'storeMaterial']);
-            Route::put('/materials/{id}',              [ContentController::class, 'updateMaterial']);
-            Route::delete('/materials/{id}',           [ContentController::class, 'destroyMaterial']);
-            Route::get('/topics/{topicId}/quizzes',    [ContentController::class, 'getQuizzesByTopic']);
-            Route::post('/quizzes',                    [ContentController::class, 'storeQuiz']);
-            Route::put('/quizzes/{id}',                [ContentController::class, 'updateQuiz']);
-            Route::delete('/quizzes/{id}',             [ContentController::class, 'destroyQuiz']);
-            Route::post('/quizzes/{quizId}/questions', [ContentController::class, 'storeQuizQuestion']);
-            Route::put('/questions/{id}',              [ContentController::class, 'updateQuestion']);
-            Route::delete('/questions/{id}',           [ContentController::class, 'destroyQuestion']);
+            Route::get('/topics',                       [ContentController::class, 'getTopics']);
+            Route::post('/topics',                      [ContentController::class, 'storeTopic']);
+            Route::put('/topics/{id}',                  [ContentController::class, 'updateTopic']);
+            Route::delete('/topics/{id}',               [ContentController::class, 'destroyTopic']);
+            Route::post('/materials',                   [ContentController::class, 'storeMaterial']);
+            Route::put('/materials/{id}',               [ContentController::class, 'updateMaterial']);
+            Route::delete('/materials/{id}',            [ContentController::class, 'destroyMaterial']);
+            Route::get('/topics/{topicId}/quizzes',     [ContentController::class, 'getQuizzesByTopic']);
+            Route::post('/quizzes',                     [ContentController::class, 'storeQuiz']);
+            Route::put('/quizzes/{id}',                 [ContentController::class, 'updateQuiz']);
+            Route::delete('/quizzes/{id}',              [ContentController::class, 'destroyQuiz']);
+            Route::post('/quizzes/{quizId}/questions',  [ContentController::class, 'storeQuizQuestion']);
+            Route::put('/questions/{id}',               [ContentController::class, 'updateQuestion']);
+            Route::delete('/questions/{id}',            [ContentController::class, 'destroyQuestion']);
         });
     });
-}); 
+});

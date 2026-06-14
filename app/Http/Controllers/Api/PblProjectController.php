@@ -123,8 +123,8 @@ class PblProjectController extends Controller
                                     : null,
             'file_name'        => $p->file_name,
             'file_url'         => $p->file_path
-                                    ? url(Storage::url($p->file_path))
-                                    : null,
+                                ? url('/api/files/' . $p->file_path)
+                                : null,
             'score'            => $p->score,
             'rubric_scores'    => $p->rubric_scores,
             'rubric_feedback'  => $p->rubric_feedback,

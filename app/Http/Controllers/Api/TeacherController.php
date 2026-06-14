@@ -123,9 +123,9 @@ class TeacherController extends Controller
                                     : null,
                 // TAMBAH: dua field ini yang hilang
                 'file_name'   => $p->file_name,
-                'file_url'    => $p->file_path
-                                    ? url(\Illuminate\Support\Facades\Storage::url($p->file_path))
-                                    : null,
+                'file_url' => $p->file_path
+                ? url('/api/files/' . $p->file_path)
+                : null,
                 'submitted_at' => $p->created_at?->toDateString(),
             ]);
     
