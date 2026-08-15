@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Subject extends Model
 {
@@ -55,5 +56,18 @@ class Subject extends Model
     public function pblProjects()
     {
         return $this->hasMany(PblProject::class);
+    }
+
+    /**
+     * Generate kode kelas unik (6 karakter alfanumerik kapital, mis. "K3F9QX").
+     * Dipakai saat membuat mapel baru maupun saat regenerate kode.
+     */
+    public static function generateUniqueJoinCode(): string
+    {
+        do {
+            $code = Str::upper(Str::random(6));
+        } while (self::where('join_code', $code)->exists());
+
+        return $code;
     }
 }

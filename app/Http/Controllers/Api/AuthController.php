@@ -20,14 +20,21 @@ class AuthController extends Controller
             'name'     => 'required|string|max:255',
             'email'    => 'required|email|unique:users',
             'password' => 'required|string|min:8',
+            // 'admin' sengaja tidak diizinkan lewat register — akun admin
+            // hanya dibuat lewat `php artisan make:admin` di server.
             'role'     => 'nullable|in:siswa,guru', // default: siswa
         ]);
+
+        $role = $validated['role'] ?? 'siswa';
 
         $user = User::create([
             'name'     => $validated['name'],
             'email'    => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role'     => $validated['role'] ?? 'siswa',
+            'role'     => $role,
+            // Guru baru menunggu approval admin dulu sebelum bisa pakai fitur
+            // guru (lihat middleware EnsureApproved) — siswa langsung aktif.
+            'status'   => $role === 'guru' ? 'pending' : 'active',
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -139,12 +146,17 @@ class AuthController extends Controller
     private function formatUser(User $user): array
     {
         return [
-            'id'        => $user->id,
-            'name'      => $user->name,
-            'email'     => $user->email,
-            'role'      => $user->role,
-            'is_guru'   => $user->role === 'guru',
-            'photo_url' => $user->photo_path
+            'id'         => $user->id,
+            'name'       => $user->name,
+            'email'      => $user->email,
+            'role'       => $user->role,
+            'is_guru'    => $user->role === 'guru',
+            'is_admin'   => $user->role === 'admin',
+            // 'status' hanya relevan buat guru (pending/active/rejected),
+            // siswa & admin selalu 'active'. Field baru — client lama yang
+            // belum tahu field ini tetap aman, cukup diabaikan.
+            'status'     => $user->status,
+            'photo_url'  => $user->photo_path
                             ? Storage::url($user->photo_path)
                             : null,
         ];

@@ -178,18 +178,26 @@ class NotificationService
     }
 
     /**
-     * Kirim notifikasi manual dari guru ke siswa tertentu.
-     * Dipanggil dari TeacherController@notifyStudent.
+     * Kirim notifikasi manual ke user manapun (siswa, guru, dst).
      */
-    public function sendToStudent(int $studentId, string $title, string $message): void
+    public function send(int $userId, string $title, string $message): void
     {
         AppNotification::create([
-            'user_id' => $studentId,
+            'user_id' => $userId,
             'type'    => 'reminder',
             'title'   => $title,
             'message' => $message,
             'is_read' => false,
             'data'    => ['flag' => 'manual_' . now()->timestamp],
         ]);
+    }
+
+    /**
+     * Alias lama, dipertahankan untuk kompatibilitas — dipanggil dari
+     * TeacherController@notifyStudent. Perilakunya sama persis dengan send().
+     */
+    public function sendToStudent(int $studentId, string $title, string $message): void
+    {
+        $this->send($studentId, $title, $message);
     }
 }

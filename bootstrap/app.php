@@ -14,13 +14,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         \App\Console\Commands\SendAdaptiveReminders::class,
+        \App\Console\Commands\MakeAdmin::class,
     ])
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->append(
             \Illuminate\Http\Middleware\HandleCors::class,
         );
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,
+            'role'     => \App\Http\Middleware\CheckRole::class,
+            'approved' => \App\Http\Middleware\EnsureApproved::class,
         ]);
         $middleware->statefulApi();
 

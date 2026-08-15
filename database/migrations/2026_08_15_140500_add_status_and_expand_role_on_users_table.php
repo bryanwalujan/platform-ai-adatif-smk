@@ -13,9 +13,10 @@ return new class extends Migration
      * - `status`: dipakai untuk alur approval akun guru ('pending' sampai
      *   di-approve admin). Default 'active' supaya semua user existing
      *   (siswa + guru lama) tidak terkunci saat migration ini jalan.
-     * - `role`: enum diperluas dari ('siswa','guru') jadi ('siswa','guru','admin').
-     *   Dipakai raw DB::statement karena Blueprint::change() untuk MySQL enum
-     *   butuh doctrine/dbal yang tidak terinstall di project ini.
+     * - `role`: enum diperluas dari ('siswa','guru') jadi ('siswa','guru','admin')
+     *   lewat Blueprint::change() — Laravel 12 sudah native mendukung ini untuk
+     *   MySQL/SQLite/dst tanpa doctrine/dbal, jadi portable lintas driver
+     *   (penting karena test suite project ini pakai sqlite, lihat phpunit.xml).
      */
     public function up(): void
     {
@@ -24,12 +25,9 @@ return new class extends Migration
                   ->default('active')->after('role');
         });
 
-        // Raw ALTER hanya valid syntax MySQL — di-guard supaya migration ini tidak
-        // pecah kalau suatu saat dijalankan di driver lain (mis. sqlite di test suite,
-        // lihat phpunit.xml). Produksi selalu mysql (lihat .env), jadi ini yang jalan.
-        if (DB::getDriverName() === 'mysql') {
-            DB::statement("ALTER TABLE users MODIFY role ENUM('siswa','guru','admin') NOT NULL DEFAULT 'siswa'");
-        }
+        Schema::table('users', function (Blueprint $table) {
+            $table->enum('role', ['siswa', 'guru', 'admin'])->default('siswa')->change();
+        });
     }
 
     /**
@@ -40,9 +38,9 @@ return new class extends Migration
         // Turunkan role admin ke siswa dulu supaya enum lama tidak menolak baris ini
         DB::table('users')->where('role', 'admin')->update(['role' => 'siswa']);
 
-        if (DB::getDriverName() === 'mysql') {
-            DB::statement("ALTER TABLE users MODIFY role ENUM('siswa','guru') NOT NULL DEFAULT 'siswa'");
-        }
+        Schema::table('users', function (Blueprint $table) {
+            $table->enum('role', ['siswa', 'guru'])->default('siswa')->change();
+        });
 
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('status');

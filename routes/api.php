@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\InteractionLogController;
 use App\Http\Controllers\Api\DiscussionController;
 use App\Http\Controllers\Api\ExportController;
+use App\Http\Controllers\Api\SubjectController;
+use App\Http\Controllers\Api\AdminController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
@@ -61,6 +63,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::get('/me',      [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Mata Pelajaran (siswa) — lihat mapel yang diikuti, join pakai kode kelas, keluar
+    Route::get('/subjects/my',        [SubjectController::class, 'mySubjects']);
+    Route::post('/subjects/join',     [SubjectController::class, 'join']);
+    Route::delete('/subjects/my/{id}',[SubjectController::class, 'leave']);
 
     // Topik & Materi
     Route::get('/topics',         [TopicController::class, 'index']);
@@ -118,11 +125,38 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Admin Routes
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:admin')->prefix('admin')->group(function () {
+
+        Route::get('/dashboard', [AdminController::class, 'dashboard']);
+
+        Route::get('/teachers/pending',        [AdminController::class, 'pendingTeachers']);
+        Route::post('/teachers/{id}/approve',  [AdminController::class, 'approveTeacher']);
+        Route::post('/teachers/{id}/reject',   [AdminController::class, 'rejectTeacher']);
+
+        Route::get('/users',              [AdminController::class, 'users']);
+        Route::get('/users/{id}',         [AdminController::class, 'userDetail']);
+        Route::put('/users/{id}/status',  [AdminController::class, 'updateUserStatus']);
+
+        Route::get('/subjects',                              [AdminController::class, 'subjects']);
+        Route::get('/subjects/{id}',                         [AdminController::class, 'subjectDetail']);
+        Route::post('/subjects/{id}/teachers',                [AdminController::class, 'addTeacher']);
+        Route::delete('/subjects/{id}/teachers/{userId}',     [AdminController::class, 'removeTeacher']);
+        Route::delete('/subjects/{id}',                       [AdminController::class, 'deactivateSubject']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | Guru Routes
     |--------------------------------------------------------------------------
     */
 
-    Route::middleware('role:guru')->prefix('guru')->group(function () {
+    // 'approved' memblokir akun guru yang statusnya masih pending/rejected —
+    // lihat App\Http\Middleware\EnsureApproved.
+    Route::middleware(['role:guru', 'approved'])->prefix('guru')->group(function () {
 
         Route::get('/dashboard',                         [TeacherController::class, 'dashboard']);
         Route::get('/students',                          [TeacherController::class, 'students']);
@@ -135,6 +169,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/students/{studentId}/notify',      [TeacherController::class, 'notifyStudent']);
         Route::post('/discussions/{id}/pin',             [DiscussionController::class, 'pin']);
         Route::get('/export/students',                   [ExportController::class, 'allStudents']);
+
+        // Mata Pelajaran — buat mapel, kode kelas, kelola siswa di mapelnya
+        Route::get('/subjects',                                  [SubjectController::class, 'index']);
+        Route::post('/subjects',                                 [SubjectController::class, 'store']);
+        Route::get('/subjects/{id}',                             [SubjectController::class, 'show']);
+        Route::put('/subjects/{id}',                             [SubjectController::class, 'update']);
+        Route::post('/subjects/{id}/join-code/regenerate',       [SubjectController::class, 'regenerateJoinCode']);
+        Route::get('/subjects/{id}/students',                    [SubjectController::class, 'students']);
+        Route::post('/subjects/{id}/students',                   [SubjectController::class, 'addStudent']);
+        Route::delete('/subjects/{id}/students/{studentId}',     [SubjectController::class, 'removeStudent']);
 
         Route::prefix('content')->group(function () {
             Route::get('/topics',                       [ContentController::class, 'getTopics']);
