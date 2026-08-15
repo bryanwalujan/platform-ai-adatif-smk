@@ -189,7 +189,15 @@ class SubjectController extends Controller
 
     /**
      * POST /subjects/join
-     * Siswa gabung ke mapel pakai kode kelas.
+     * Gabung ke mapel pakai kode kelas — sama untuk siswa maupun guru,
+     * dibedakan lewat role user yang login:
+     *   - siswa   → jadi peserta (subject_student, self_joined)
+     *   - guru    → jadi co-teacher (subject_teacher), pakai kode yang sama
+     *               yang dibagikan pemilik mapel ke rekan guru lain
+     *
+     * Ini pelengkap dari admin yang juga bisa assign guru ke mapel manapun
+     * (lihat AdminController::addTeacher) — dua jalur, self-service atau
+     * di-assign admin, sesuai kebutuhan.
      */
     public function join(Request $request)
     {
@@ -197,16 +205,29 @@ class SubjectController extends Controller
 
         $user = $request->user();
 
-        if (! $user->isStudent()) {
-            return response()->json(['message' => 'Hanya siswa yang dapat bergabung ke mata pelajaran'], 403);
-        }
-
         $subject = Subject::where('join_code', strtoupper(trim($request->join_code)))
             ->where('is_active', true)
             ->first();
 
         if (! $subject) {
             return response()->json(['message' => 'Kode kelas tidak valid atau mata pelajaran tidak aktif'], 404);
+        }
+
+        if ($user->isTeacher()) {
+            if ($subject->teachers()->where('users.id', $user->id)->exists()) {
+                return response()->json(['message' => 'Kamu sudah menjadi pengampu mata pelajaran ini'], 422);
+            }
+
+            $subject->teachers()->attach($user->id);
+
+            return response()->json([
+                'message' => "Berhasil bergabung sebagai pengampu \"{$subject->name}\"",
+                'subject' => $subject,
+            ], 201);
+        }
+
+        if (! $user->isStudent()) {
+            return response()->json(['message' => 'Role Anda tidak dapat bergabung ke mata pelajaran'], 403);
         }
 
         if ($subject->students()->where('users.id', $user->id)->exists()) {
