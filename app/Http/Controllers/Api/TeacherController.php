@@ -3,24 +3,83 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Models\PblProject;
 use App\Models\StudentTopicMastery;
 use App\Models\Topic;
+use App\Models\User;
+use App\Services\NotificationService;
+use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
 class TeacherController extends Controller
 {
+    public function __construct(private SubjectAccessService $access)
+    {
+    }
+
+    /**
+     * Mata pelajaran mana saja yang relevan untuk request ini.
+     *
+     * PERBAIKAN BESAR: seluruh controller ini dulu 100% global — query
+     * `User::where('role','siswa')` tanpa filter apapun, jadi guru manapun
+     * lihat SEMUA siswa & proyek di seluruh sistem, bukan cuma yang ikut
+     * mapelnya. Sekarang dibatasi ke mapel yang diampu guru ini.
+     *
+     * Kalau ?subject_id= dikirim, dipakai satu itu saja (tervalidasi guru
+     * memang mengampu). Kalau tidak, dipakai SEMUA mapel yang diampu guru
+     * ini — untuk guru yang cuma punya 1 mapel (kondisi guru lama pasca
+     * migrasi Fase 1), hasilnya identik dengan perilaku lama yang memang
+     * cuma ada 1 mapel di seluruh sistem.
+     */
+    private function relevantSubjectIds(Request $request): array
+    {
+        $user = $request->user();
+
+        if ($request->filled('subject_id')) {
+            $subjectId = (int) $request->subject_id;
+            $this->access->assertTeaches($user, $subjectId);
+
+            return [$subjectId];
+        }
+
+        return $this->access->teacherSubjectIds($user);
+    }
+
+    /**
+     * Pastikan $studentId benar-benar terdaftar di salah satu mapel yang
+     * diampu guru ini. Dulu tidak ada pengecekan sama sekali di
+     * studentProgress/studentMastery/notifyStudent — guru manapun bisa pass
+     * studentId siapapun.
+     */
+    private function assertTeachesStudent(Request $request, int $studentId): array
+    {
+        $subjectIds = $this->relevantSubjectIds($request);
+
+        $isTaught = User::where('id', $studentId)
+            ->whereHas('subjectsEnrolled', fn ($q) => $q->whereIn('subjects.id', $subjectIds))
+            ->exists();
+
+        if (! $isTaught) {
+            abort(403, 'Siswa ini tidak terdaftar di mata pelajaran yang Anda ampu.');
+        }
+
+        return $subjectIds;
+    }
+
     /**
      * GET /guru/dashboard
      */
-    public function dashboard()
+    public function dashboard(Request $request)
     {
+        $subjectIds = $this->relevantSubjectIds($request);
+
         return response()->json([
-            'total_students'   => User::where('role', 'siswa')->count(),
-            'total_projects'   => PblProject::count(),
-            'pending_projects' => PblProject::where('status', 'submitted')->count(),
-            'total_topics'     => Topic::count(), // TAMBAH: dipakai stat card Flutter
+            'total_students'   => User::where('role', 'siswa')
+                ->whereHas('subjectsEnrolled', fn ($q) => $q->whereIn('subjects.id', $subjectIds))
+                ->count(),
+            'total_projects'   => PblProject::whereIn('subject_id', $subjectIds)->count(),
+            'pending_projects' => PblProject::whereIn('subject_id', $subjectIds)->where('status', 'submitted')->count(),
+            'total_topics'     => Topic::whereIn('subject_id', $subjectIds)->count(),
         ]);
     }
 
@@ -28,11 +87,17 @@ class TeacherController extends Controller
      * GET /guru/students
      * Hanya kirim field yang dibutuhkan + avg_mastery untuk TeacherAdaptiveScreen
      */
-    public function students()
+    public function students(Request $request)
     {
+        $subjectIds = $this->relevantSubjectIds($request);
+
         $students = User::where('role', 'siswa')
+            ->whereHas('subjectsEnrolled', fn ($q) => $q->whereIn('subjects.id', $subjectIds))
             ->withCount('pblProjects')
-            ->with('studentMasteries')
+            ->with(['studentMasteries' => fn ($q) => $q->whereHas(
+                'topic',
+                fn ($t) => $t->whereIn('subject_id', $subjectIds)
+            )])
             ->get()
             ->map(fn($s) => [
                 'id'         => $s->id,
@@ -50,11 +115,14 @@ class TeacherController extends Controller
      * GET /guru/students/{studentId}/progress
      * Format masteries disesuaikan dengan StudentProgressScreen Flutter
      */
-    public function studentProgress($studentId)
+    public function studentProgress(Request $request, $studentId)
     {
+        $subjectIds = $this->assertTeachesStudent($request, (int) $studentId);
+
         $student = User::where('role', 'siswa')->findOrFail($studentId);
 
         $masteries = StudentTopicMastery::where('user_id', $studentId)
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->orderByDesc('mastery_level')
             ->get()
@@ -80,6 +148,7 @@ class TeacherController extends Controller
         };
 
         $projects = PblProject::where('user_id', $studentId)
+            ->whereIn('subject_id', $subjectIds)
             ->latest()
             ->get()
             ->map(fn($p) => [
@@ -103,11 +172,40 @@ class TeacherController extends Controller
     }
 
     /**
+     * GET /guru/students/{studentId}/mastery
+     * BARU: route ini sudah lama terdaftar tapi method-nya belum pernah
+     * dibuat (dead route) — ditemukan & dilengkapi sekalian saat mengerjakan
+     * subject scoping.
+     */
+    public function studentMastery(Request $request, $studentId)
+    {
+        $subjectIds = $this->assertTeachesStudent($request, (int) $studentId);
+
+        $masteries = StudentTopicMastery::where('user_id', $studentId)
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
+            ->with('topic:id,title')
+            ->orderByDesc('mastery_level')
+            ->get()
+            ->map(fn($m) => [
+                'topic_id'      => $m->topic_id,
+                'topic_title'   => $m->topic?->title ?? '-',
+                'mastery_level' => (float) $m->mastery_level,
+                'attempts'      => $m->attempts,
+                'last_accessed' => $m->last_accessed?->toIso8601String(),
+            ]);
+
+        return response()->json($masteries);
+    }
+
+    /**
      * GET /guru/pending-projects
      */
-    public function pendingProjects()
+    public function pendingProjects(Request $request)
     {
-        $projects = PblProject::where('status', 'submitted')
+        $subjectIds = $this->relevantSubjectIds($request);
+
+        $projects = PblProject::whereIn('subject_id', $subjectIds)
+            ->where('status', 'submitted')
             ->with('user:id,name,email', 'topic:id,title')
             ->latest()
             ->get()
@@ -121,17 +219,48 @@ class TeacherController extends Controller
                 'topic'       => $p->topic
                                     ? ['id' => $p->topic->id, 'title' => $p->topic->title]
                                     : null,
-                // TAMBAH: dua field ini yang hilang
                 'file_name'   => $p->file_name,
                 'file_url' => $p->file_path
                 ? url('/api/files/' . $p->file_path)
                 : null,
                 'submitted_at' => $p->created_at?->toDateString(),
             ]);
-    
+
         return response()->json($projects);
     }
-    
+
+    /**
+     * GET /guru/all-projects
+     */
+    public function allProjects(Request $request)
+    {
+        $subjectIds = $this->relevantSubjectIds($request);
+
+        $projects = PblProject::whereIn('subject_id', $subjectIds)
+            ->with('user:id,name,email', 'topic:id,title')
+            ->latest()
+            ->get()
+            ->map(fn($p) => [
+                'id'          => $p->id,
+                'title'       => $p->title,
+                'description' => $p->description,
+                'level'       => $p->level,
+                'status'      => $p->status,
+                'user'        => $p->user,
+                'topic'       => $p->topic
+                                    ? ['id' => $p->topic->id, 'title' => $p->topic->title]
+                                    : null,
+                'score'       => $p->score,
+                'file_name'   => $p->file_name,
+                'file_url'    => $p->file_path
+                                    ? url('/api/files/' . $p->file_path)
+                                    : null,
+                'submitted_at' => $p->created_at?->toDateString(),
+            ]);
+
+        return response()->json($projects);
+    }
+
     /**
      * POST /guru/projects/{projectId}/grade
      */
@@ -148,6 +277,7 @@ class TeacherController extends Controller
         ]);
 
         $project = PblProject::findOrFail($projectId);
+        $this->access->assertTeaches($request->user(), $project->subject_id);
 
         if ($project->status === 'graded') {
             return response()->json(['message' => 'Proyek sudah pernah dinilai'], 422);
@@ -163,10 +293,10 @@ class TeacherController extends Controller
         $project->save();
 
         // Kirim notifikasi ke siswa
-        app(\App\Services\NotificationService::class)->sendToStudent(
-            studentId: $project->user_id,
-            title:     '✅ Proyek PBL Sudah Dinilai',
-            message:   "Proyek \"{$project->title}\" mendapat nilai {$project->score}. "
+        app(NotificationService::class)->send(
+            userId:  $project->user_id,
+            title:   '✅ Proyek PBL Sudah Dinilai',
+            message: "Proyek \"{$project->title}\" mendapat nilai {$project->score}. "
                      . "Lihat feedback dari guru!",
         );
 
@@ -184,10 +314,12 @@ class TeacherController extends Controller
             'message' => 'required|string',
         ]);
 
-        app(\App\Services\NotificationService::class)->sendToStudent(
-            studentId: (int) $studentId,
-            title:     $request->title,
-            message:   $request->message,
+        $this->assertTeachesStudent($request, (int) $studentId);
+
+        app(NotificationService::class)->send(
+            userId:  (int) $studentId,
+            title:   $request->title,
+            message: $request->message,
         );
 
         return response()->json(['message' => 'Notifikasi berhasil dikirim']);

@@ -5,10 +5,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\InteractionLog;
+use App\Models\Topic;
+use App\Models\User;
+use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
 class InteractionLogController extends Controller
 {
+    public function __construct(private SubjectAccessService $access)
+    {
+    }
+
     /**
      * POST /interaction-logs
      * Dipanggil dari Flutter setiap ada interaksi penting.
@@ -22,7 +29,11 @@ class InteractionLogController extends Controller
             'duration_seconds' => 'nullable|integer|min:0',
         ]);
 
-        $userId = $request->user()->id;
+        $user  = $request->user();
+        $topic = Topic::findOrFail($validated['topic_id']);
+        $this->access->assertEnrolled($user, $topic->subject_id);
+
+        $userId = $user->id;
 
         // Jika open_material, cek apakah sudah pernah dibuka sebelumnya
         // Jika sudah, ubah action menjadi repeat_material dan increment open_count
@@ -88,9 +99,6 @@ class InteractionLogController extends Controller
                 'total_minutes'  => round($l->duration_seconds / 60, 1),
             ])->values();
 
-        // Topik yang belum pernah dibuka sama sekali
-        $openedTopicIds = $logs->pluck('topic_id')->unique();
-
         return response()->json([
             'total_interactions'  => $logs->count(),
             'repeated_materials'  => $repeated,
@@ -105,10 +113,27 @@ class InteractionLogController extends Controller
     /**
      * GET /guru/students/{studentId}/interactions
      * Untuk guru melihat pola belajar siswa tertentu.
+     *
+     * PERBAIKAN: dulu TIDAK ADA pengecekan otorisasi sama sekali — guru
+     * manapun bisa pass studentId siapapun dan lihat log interaksinya,
+     * terlindungi cuma karena rute ini kebetulan ada di grup role:guru.
+     * Sekarang wajib divalidasi siswa itu benar terdaftar di salah satu
+     * mapel yang diampu guru ini.
      */
     public function studentSummary(Request $request, $studentId)
     {
+        $subjectIds = $this->access->teacherSubjectIds($request->user());
+
+        $isTaught = User::where('id', $studentId)
+            ->whereHas('subjectsEnrolled', fn ($q) => $q->whereIn('subjects.id', $subjectIds))
+            ->exists();
+
+        if (! $isTaught) {
+            return response()->json(['message' => 'Siswa ini tidak terdaftar di mata pelajaran yang Anda ampu.'], 403);
+        }
+
         $logs = InteractionLog::where('user_id', $studentId)
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title', 'material:id,title')
             ->latest()
             ->get();

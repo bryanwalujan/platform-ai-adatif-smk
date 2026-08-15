@@ -5,27 +5,31 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Quiz;
 use App\Models\TestResult;
+use App\Models\Topic;
 use App\Services\AdaptiveEngineService;
+use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
 class QuizController extends Controller
 {
-    protected AdaptiveEngineService $adaptiveService;
-
-    public function __construct(AdaptiveEngineService $adaptiveService)
-    {
-        $this->adaptiveService = $adaptiveService;
+    public function __construct(
+        private AdaptiveEngineService $adaptiveService,
+        private SubjectAccessService $access,
+    ) {
     }
 
-    public function getByTopic($topicId)
+    public function getByTopic(Request $request, $topicId)
     {
+        $topic = Topic::findOrFail($topicId);
+        $this->access->assertEnrolled($request->user(), $topic->subject_id);
+
         $quizzes = Quiz::where('topic_id', $topicId)
             ->withCount('questions')
             ->get()
             ->map(fn($q) => [
                 'id'              => $q->id,
                 'title'           => $q->title,
-                'type'            => $q->type,   // TAMBAH agar Flutter tahu tipenya
+                'type'            => $q->type,
                 'passing_score'   => $q->passing_score,
                 'questions_count' => $q->questions_count,
             ]);
@@ -33,25 +37,29 @@ class QuizController extends Controller
         return response()->json($quizzes);
     }
 
-    public function getQuestions($quizId)
+    public function getQuestions(Request $request, $quizId)
     {
-        $quiz = Quiz::with('questions')->findOrFail($quizId);
+        $quiz = Quiz::with(['questions', 'topic:id,subject_id'])->findOrFail($quizId);
+        $this->access->assertEnrolled($request->user(), $quiz->topic->subject_id);
 
+        // 'correct_answer' SENGAJA tidak dikirim di sini — ini dipakai untuk
+        // render form kuis SEBELUM dijawab. Sebelumnya bocor ke client, siswa
+        // yang cek response API bisa curang. Skoring tetap dihitung server-side
+        // di submit(), Flutter tidak butuh correct_answer di titik ini.
         $questions = $quiz->questions->map(fn($q) => [
-            'id'             => $q->id,
-            'question'       => $q->question,
-            'options'        => is_string($q->options)
-                                    ? json_decode($q->options, true)
-                                    : ($q->options ?? []),
-            'correct_answer' => $q->correct_answer,
-            'point'          => $q->point,
+            'id'      => $q->id,
+            'question' => $q->question,
+            'options' => is_string($q->options)
+                            ? json_decode($q->options, true)
+                            : ($q->options ?? []),
+            'point'   => $q->point,
         ]);
 
         return response()->json([
             'quiz' => [
                 'id'            => $quiz->id,
                 'title'         => $quiz->title,
-                'type'          => $quiz->type,   // TAMBAH
+                'type'          => $quiz->type,
                 'passing_score' => $quiz->passing_score,
                 'time_limit'    => $quiz->time_limit_minutes,
             ],
@@ -66,9 +74,11 @@ class QuizController extends Controller
             'time_spent_minutes' => 'nullable|integer|min:0',
         ]);
 
-        $quiz      = Quiz::with('questions')->findOrFail($quizId);
+        $quiz      = Quiz::with(['questions', 'topic:id,subject_id'])->findOrFail($quizId);
         $questions = $quiz->questions;
         $user      = $request->user();
+
+        $this->access->assertEnrolled($user, $quiz->topic->subject_id);
 
         if ($questions->isEmpty()) {
             return response()->json(['message' => 'Kuis tidak memiliki soal'], 422);

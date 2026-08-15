@@ -180,7 +180,31 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/subjects/{id}/students',                   [SubjectController::class, 'addStudent']);
         Route::delete('/subjects/{id}/students/{studentId}',     [SubjectController::class, 'removeStudent']);
 
+        // Legacy — dipertahankan untuk klien Flutter lama yang belum tahu
+        // konsep mata pelajaran. subject_id di-resolve otomatis (lihat
+        // SubjectAccessService::resolveSubjectId) ke mapel tertua milik guru.
         Route::prefix('content')->group(function () {
+            Route::get('/topics',                       [ContentController::class, 'getTopics']);
+            Route::post('/topics',                      [ContentController::class, 'storeTopic']);
+            Route::put('/topics/{id}',                  [ContentController::class, 'updateTopic']);
+            Route::delete('/topics/{id}',               [ContentController::class, 'destroyTopic']);
+            Route::post('/materials',                   [ContentController::class, 'storeMaterial']);
+            Route::put('/materials/{id}',               [ContentController::class, 'updateMaterial']);
+            Route::delete('/materials/{id}',            [ContentController::class, 'destroyMaterial']);
+            Route::get('/topics/{topicId}/quizzes',     [ContentController::class, 'getQuizzesByTopic']);
+            Route::post('/quizzes',                     [ContentController::class, 'storeQuiz']);
+            Route::put('/quizzes/{id}',                 [ContentController::class, 'updateQuiz']);
+            Route::delete('/quizzes/{id}',              [ContentController::class, 'destroyQuiz']);
+            Route::post('/quizzes/{quizId}/questions',  [ContentController::class, 'storeQuizQuestion']);
+            Route::put('/questions/{id}',               [ContentController::class, 'updateQuestion']);
+            Route::delete('/questions/{id}',            [ContentController::class, 'destroyQuestion']);
+        });
+
+        // Baru — subject_id eksplisit dari URL, dipakai Flutter versi
+        // mendatang yang sudah sadar mata pelajaran. Controller method-nya
+        // SAMA PERSIS dengan grup 'content' di atas (subject_id jadi
+        // parameter tambahan, di-resolve dari route alih-alih fallback).
+        Route::prefix('subjects/{subjectId}/content')->group(function () {
             Route::get('/topics',                       [ContentController::class, 'getTopics']);
             Route::post('/topics',                      [ContentController::class, 'storeTopic']);
             Route::put('/topics/{id}',                  [ContentController::class, 'updateTopic']);

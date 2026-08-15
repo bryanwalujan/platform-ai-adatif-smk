@@ -55,14 +55,20 @@ class AdaptiveEngineService
     /**
      * Buat daftar rekomendasi personal untuk siswa.
      * Struktur response dipakai oleh RecommendationScreen Flutter.
+     *
+     * $subjectIds: mata pelajaran mana saja yang relevan (biasanya semua
+     * mapel yang diikuti siswa, atau satu mapel spesifik). WAJIB diisi
+     * pemanggil (bukan nullable) — supaya rekomendasi topik baru tidak
+     * pernah menyarankan topik dari mapel yang tidak diikuti siswa.
      */
-    public function getRecommendations(int $userId): array
+    public function getRecommendations(int $userId, array $subjectIds): array
     {
         $masteries = StudentTopicMastery::where('user_id', $userId)
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->orderBy('mastery_level')
             ->get();
-    
+
         // TAMBAH: ambil data materi yang sering diulang sebagai sinyal kesulitan
         $repeatedMaterials = \App\Models\InteractionLog::where('user_id', $userId)
             ->where('action', 'repeat_material')
@@ -108,9 +114,10 @@ class AdaptiveEngineService
         }
     
         if (count($recommendations) < 2) {
-            $nextTopic = Topic::whereDoesntHave('studentMasteries', function ($q) use ($userId) {
-                $q->where('user_id', $userId);
-            })->first();
+            $nextTopic = Topic::whereIn('subject_id', $subjectIds)
+                ->whereDoesntHave('studentMasteries', function ($q) use ($userId) {
+                    $q->where('user_id', $userId);
+                })->first();
     
             if ($nextTopic) {
                 $recommendations[] = [
@@ -127,10 +134,12 @@ class AdaptiveEngineService
 
     /**
      * Tentukan level proyek PBL berdasarkan rata-rata mastery.
+     * $subjectIds sama seperti getRecommendations() — wajib diisi.
      */
-    public function getPBLLevel(int $userId): string
+    public function getPBLLevel(int $userId, array $subjectIds): string
     {
         $avgMastery = StudentTopicMastery::where('user_id', $userId)
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->avg('mastery_level') ?? 0;
 
         if ($avgMastery >= 85) return 'Lanjutan';

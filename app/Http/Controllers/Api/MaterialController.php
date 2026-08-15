@@ -4,13 +4,20 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Material;
+use App\Services\SubjectAccessService;
+use Illuminate\Http\Request;
 
 class MaterialController extends Controller
 {
-    public function show($id)
+    public function __construct(private SubjectAccessService $access)
     {
-        $material = Material::with('topic:id,title')->findOrFail($id);
-    
+    }
+
+    public function show(Request $request, $id)
+    {
+        $material = Material::with('topic:id,title,subject_id')->findOrFail($id);
+        $this->access->assertEnrolled($request->user(), $material->topic->subject_id);
+
         return response()->json([
             'id'               => $material->id,
             'topic_id'         => $material->topic_id,

@@ -4,38 +4,35 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\StudentTopicMastery;
+use App\Models\Topic;
 use App\Services\AdaptiveEngineService;
+use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
 class MasteryController extends Controller
 {
-    protected AdaptiveEngineService $engine;
-
-    public function __construct(AdaptiveEngineService $engine)
-    {
-        $this->engine = $engine;
+    public function __construct(
+        private AdaptiveEngineService $engine,
+        private SubjectAccessService $access,
+    ) {
     }
 
     /**
      * GET /mastery
-     * Mengembalikan mastery level semua topik milik siswa yang login.
-     * Struktur ini yang dibutuhkan MasteryScreen (BarChart) di Flutter.
-     *
-     * Response:
-     * [
-     *   {
-     *     "topic_id": 1,
-     *     "topic_title": "Prinsip Animasi",
-     *     "mastery_level": 75.50,
-     *     "attempts": 3,
-     *     "last_accessed": "2025-06-01T10:00:00Z"
-     *   },
-     *   ...
-     * ]
+     * Klien LAMA (tanpa ?subject_id=) tetap dapat mastery lintas SEMUA mapel
+     * siswa (union) — identik dengan perilaku lama untuk siswa yang cuma
+     * ikut 1 mapel (kondisi semua siswa pasca migrasi Fase 1).
      */
     public function index(Request $request)
     {
-        $masteries = StudentTopicMastery::where('user_id', $request->user()->id)
+        $user = $request->user();
+
+        $subjectIds = $request->filled('subject_id')
+            ? [$this->validatedSubjectId($request, $user)]
+            : $this->access->studentSubjectIds($user);
+
+        $masteries = StudentTopicMastery::where('user_id', $user->id)
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->orderByDesc('mastery_level')
             ->get()
@@ -52,10 +49,6 @@ class MasteryController extends Controller
 
     /**
      * POST /mastery/update
-     * Update mastery secara manual (opsional).
-     * Biasanya dipanggil otomatis dari QuizController@submit.
-     *
-     * Body: { topic_id, quiz_score, time_spent_minutes }
      */
     public function update(Request $request)
     {
@@ -64,6 +57,9 @@ class MasteryController extends Controller
             'quiz_score'         => 'required|numeric|min:0|max:100',
             'time_spent_minutes' => 'nullable|integer|min:0',
         ]);
+
+        $topic = Topic::findOrFail($validated['topic_id']);
+        $this->access->assertEnrolled($request->user(), $topic->subject_id);
 
         $mastery = $this->engine->updateMastery(
             userId:            $request->user()->id,
@@ -77,5 +73,13 @@ class MasteryController extends Controller
             'attempts'      => $mastery->attempts,
             'message'       => 'Mastery berhasil diperbarui',
         ]);
+    }
+
+    private function validatedSubjectId(Request $request, $user): int
+    {
+        $subjectId = (int) $request->subject_id;
+        $this->access->assertEnrolled($user, $subjectId);
+
+        return $subjectId;
     }
 }

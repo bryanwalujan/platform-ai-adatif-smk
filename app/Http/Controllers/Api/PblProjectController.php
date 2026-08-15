@@ -4,19 +4,32 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PblProject;
-use App\Services\NotificationService;
+use App\Models\Topic;
+use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class PblProjectController extends Controller
 {
+    public function __construct(private SubjectAccessService $access)
+    {
+    }
+
     /**
      * GET /pbl-projects
-     * Daftar proyek milik siswa yang login
+     * Daftar proyek milik siswa yang login. Opsional ?subject_id= untuk
+     * filter satu mapel; default semua mapel (sama seperti perilaku lama).
      */
     public function index(Request $request)
     {
-        $projects = PblProject::where('user_id', $request->user()->id)
+        $user = $request->user();
+
+        $projects = PblProject::where('user_id', $user->id)
+            ->when($request->filled('subject_id'), function ($q) use ($request, $user) {
+                $subjectId = (int) $request->subject_id;
+                $this->access->assertEnrolled($user, $subjectId);
+                $q->where('subject_id', $subjectId);
+            })
             ->with('topic:id,title')
             ->latest()
             ->get()
@@ -39,6 +52,10 @@ class PblProjectController extends Controller
 
     /**
      * POST /pbl-projects
+     * subject_id ditentukan dari topic_id kalau ada (topic tahu mapelnya
+     * sendiri); kalau proyek tidak terikat topik (mode bebas), pakai
+     * ?subject_id= eksplisit atau fallback ke mapel siswa (lihat
+     * SubjectAccessService::resolveSubjectId).
      */
     public function store(Request $request)
     {
@@ -47,12 +64,24 @@ class PblProjectController extends Controller
             'description' => 'nullable|string',
             'level'       => 'required|in:Dasar,Menengah,Lanjutan',
             'topic_id'    => 'nullable|exists:topics,id',
+            'subject_id'  => 'nullable|exists:subjects,id',
             'file'        => 'nullable|file|max:51200', // max 50MB
         ]);
 
+        $user = $request->user();
+
+        if ($request->topic_id) {
+            $topic     = Topic::findOrFail($request->topic_id);
+            $subjectId = $topic->subject_id;
+            $this->access->assertEnrolled($user, $subjectId);
+        } else {
+            $subjectId = $this->access->resolveSubjectId($request, $user);
+        }
+
         $project = PblProject::create([
-            'user_id'     => $request->user()->id,
+            'user_id'     => $user->id,
             'topic_id'    => $request->topic_id,
+            'subject_id'  => $subjectId,
             'title'       => $request->title,
             'description' => $request->description,
             'level'       => $request->level,

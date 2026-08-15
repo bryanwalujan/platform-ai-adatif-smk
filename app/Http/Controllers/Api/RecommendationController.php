@@ -6,43 +6,50 @@ use App\Http\Controllers\Controller;
 use App\Models\StudentTopicMastery;
 use App\Models\Topic;
 use App\Services\AdaptiveEngineService;
+use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
 class RecommendationController extends Controller
 {
-    protected AdaptiveEngineService $engine;
+    public function __construct(
+        private AdaptiveEngineService $engine,
+        private SubjectAccessService $access,
+    ) {
+    }
 
-    public function __construct(AdaptiveEngineService $engine)
+    /**
+     * Mata pelajaran mana saja yang relevan untuk request ini. Kalau
+     * ?subject_id= dikirim, dipakai satu itu saja (setelah divalidasi
+     * siswa memang ikut mapel itu). Kalau tidak, dipakai SEMUA mapel yang
+     * diikuti siswa — untuk siswa yang cuma ikut 1 mapel (kondisi semua
+     * siswa pasca migrasi Fase 1), hasilnya identik dengan perilaku lama.
+     */
+    private function relevantSubjectIds(Request $request): array
     {
-        $this->engine = $engine;
+        $user = $request->user();
+
+        if ($request->filled('subject_id')) {
+            $subjectId = (int) $request->subject_id;
+            $this->access->assertEnrolled($user, $subjectId);
+
+            return [$subjectId];
+        }
+
+        return $this->access->studentSubjectIds($user);
     }
 
     /**
      * GET /recommendations
-     * Dipakai oleh RecommendationScreen Flutter.
-     *
-     * Response:
-     * {
-     *   "pbl_level": "Menengah",
-     *   "avg_mastery": 68.5,
-     *   "recommendations": [
-     *     {
-     *       "type": "review",
-     *       "priority": "high",
-     *       "message": "Kamu sangat perlu mengulang topik ini",
-     *       "topic": { "id": 1, "title": "Prinsip Animasi" }
-     *     },
-     *     ...
-     *   ]
-     * }
      */
     public function index(Request $request)
     {
-        $userId = $request->user()->id;
+        $userId     = $request->user()->id;
+        $subjectIds = $this->relevantSubjectIds($request);
 
-        $recommendations = $this->engine->getRecommendations($userId);
-        $pblLevel        = $this->engine->getPBLLevel($userId);
-        $avgMastery      = StudentTopicMastery::where('user_id', $userId)
+        $recommendations = $this->engine->getRecommendations($userId, $subjectIds);
+        $pblLevel        = $this->engine->getPBLLevel($userId, $subjectIds);
+        $avgMastery       = StudentTopicMastery::where('user_id', $userId)
+                            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
                             ->avg('mastery_level') ?? 0;
 
         return response()->json([
@@ -54,35 +61,21 @@ class RecommendationController extends Controller
 
     /**
      * GET /progress-report
-     * BARU: endpoint untuk ProgressReportScreen — mengembalikan semua data
-     * yang dibutuhkan untuk generate PDF di Flutter.
-     *
-     * Response:
-     * {
-     *   "user": { "name", "email" },
-     *   "pbl_level": "Menengah",
-     *   "avg_mastery": 68.5,
-     *   "mastery_list": [
-     *     { "topic_title": "Prinsip Animasi", "mastery_level": 80, "attempts": 3 },
-     *     ...
-     *   ],
-     *   "total_topics": 10,
-     *   "completed_topics": 4,
-     *   "generated_at": "2025-06-01T10:00:00Z"
-     * }
      */
     public function progressReport(Request $request)
     {
-        $user   = $request->user();
-        $userId = $user->id;
+        $user       = $request->user();
+        $userId     = $user->id;
+        $subjectIds = $this->relevantSubjectIds($request);
 
         $masteries = StudentTopicMastery::where('user_id', $userId)
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->orderByDesc('mastery_level')
             ->get();
 
         $avgMastery = $masteries->avg('mastery_level') ?? 0;
-        $pblLevel   = $this->engine->getPBLLevel($userId);
+        $pblLevel   = $this->engine->getPBLLevel($userId, $subjectIds);
 
         return response()->json([
             'user' => [
@@ -96,7 +89,9 @@ class RecommendationController extends Controller
                 'mastery_level' => (float) $m->mastery_level,
                 'attempts'      => $m->attempts,
             ]),
-            'total_topics'     => Topic::count(),
+            // PERBAIKAN: dulu Topic::count() global (semua mapel di seluruh
+            // sistem) — sekarang dibatasi ke mapel yang relevan buat siswa ini.
+            'total_topics'     => Topic::whereIn('subject_id', $subjectIds)->count(),
             'completed_topics' => $masteries->where('mastery_level', '>=', 75)->count(),
             'generated_at'     => now()->toIso8601String(),
         ]);

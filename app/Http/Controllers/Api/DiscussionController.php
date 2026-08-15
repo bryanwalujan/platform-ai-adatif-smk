@@ -6,15 +6,24 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Discussion;
 use App\Models\DiscussionReply;
+use App\Models\Topic;
+use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
 class DiscussionController extends Controller
 {
+    public function __construct(private SubjectAccessService $access)
+    {
+    }
+
     /**
      * GET /topics/{topicId}/discussions
      */
-    public function index($topicId)
+    public function index(Request $request, $topicId)
     {
+        $topic = Topic::findOrFail($topicId);
+        $this->access->assertEnrolled($request->user(), $topic->subject_id);
+
         $discussions = Discussion::where('topic_id', $topicId)
             ->with('user:id,name,role')
             ->withCount('replies')
@@ -45,6 +54,9 @@ class DiscussionController extends Controller
      */
     public function store(Request $request, $topicId)
     {
+        $topic = Topic::findOrFail($topicId);
+        $this->access->assertEnrolled($request->user(), $topic->subject_id);
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'body'  => 'required|string',
@@ -69,12 +81,15 @@ class DiscussionController extends Controller
      * GET /discussions/{id}
      * Detail diskusi beserta semua balasan
      */
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $discussion = Discussion::with([
             'user:id,name,role',
             'replies.user:id,name,role',
+            'topic:id,subject_id',
         ])->findOrFail($id);
+
+        $this->access->assertEnrolled($request->user(), $discussion->topic->subject_id);
 
         return response()->json([
             'id'           => $discussion->id,
@@ -108,9 +123,10 @@ class DiscussionController extends Controller
      */
     public function reply(Request $request, $id)
     {
-        $request->validate(['body' => 'required|string']);
+        $discussion = Discussion::with('topic:id,subject_id')->findOrFail($id);
+        $this->access->assertEnrolled($request->user(), $discussion->topic->subject_id);
 
-        $discussion = Discussion::findOrFail($id);
+        $request->validate(['body' => 'required|string']);
 
         $reply = DiscussionReply::create([
             'discussion_id' => $id,
@@ -139,15 +155,23 @@ class DiscussionController extends Controller
 
     /**
      * POST /discussions/{id}/resolve
-     * Tandai diskusi sebagai selesai (oleh pembuat atau guru)
+     * Tandai diskusi sebagai selesai — oleh pembuat, atau guru yang
+     * mengampu mata pelajaran topik ini.
+     *
+     * PERBAIKAN: dulu cek-nya cuma `role === 'guru'` — guru MANAPUN di
+     * sistem bisa resolve diskusi siapapun, bukan cuma guru yang
+     * mengampu mapel terkait. Makin berbahaya begitu ada banyak mapel
+     * dari guru berbeda-beda.
      */
     public function resolve(Request $request, $id)
     {
-        $discussion = Discussion::findOrFail($id);
+        $discussion = Discussion::with('topic:id,subject_id')->findOrFail($id);
+        $user = $request->user();
 
-        // Hanya pembuat atau guru yang bisa resolve
-        if ($discussion->user_id !== $request->user()->id
-            && $request->user()->role !== 'guru') {
+        $isOwner   = $discussion->user_id === $user->id;
+        $isTeacher = $this->access->teaches($user, $discussion->topic->subject_id);
+
+        if (! $isOwner && ! $isTeacher) {
             return response()->json(['message' => 'Tidak diizinkan'], 403);
         }
 
@@ -158,14 +182,18 @@ class DiscussionController extends Controller
 
     /**
      * POST /discussions/{id}/replies/{replyId}/best
-     * Tandai balasan sebagai jawaban terbaik (guru atau pembuat diskusi)
+     * Sama seperti resolve() — dibatasi ke pembuat diskusi atau guru
+     * pengampu mapel terkait, bukan guru manapun.
      */
     public function markBestAnswer(Request $request, $id, $replyId)
     {
-        $discussion = Discussion::findOrFail($id);
+        $discussion = Discussion::with('topic:id,subject_id')->findOrFail($id);
+        $user = $request->user();
 
-        if ($discussion->user_id !== $request->user()->id
-            && $request->user()->role !== 'guru') {
+        $isOwner   = $discussion->user_id === $user->id;
+        $isTeacher = $this->access->teaches($user, $discussion->topic->subject_id);
+
+        if (! $isOwner && ! $isTeacher) {
             return response()->json(['message' => 'Tidak diizinkan'], 403);
         }
 
@@ -183,11 +211,14 @@ class DiscussionController extends Controller
 
     /**
      * POST /guru/discussions/{id}/pin
-     * Guru pin diskusi penting
+     * Guru pin diskusi penting — dibatasi ke guru pengampu mapel terkait
+     * saja (dulu guru manapun bisa pin diskusi apapun).
      */
-    public function pin($id)
+    public function pin(Request $request, $id)
     {
-        $discussion = Discussion::findOrFail($id);
+        $discussion = Discussion::with('topic:id,subject_id')->findOrFail($id);
+        $this->access->assertTeaches($request->user(), $discussion->topic->subject_id);
+
         $discussion->update(['is_pinned' => !$discussion->is_pinned]);
 
         return response()->json([

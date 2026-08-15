@@ -8,33 +8,49 @@ use App\Models\StudentTopicMastery;
 use App\Models\User;
 use App\Models\LearningLog;
 use App\Models\TestResult;
+use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
 class ExportController extends Controller
 {
+    public function __construct(private SubjectAccessService $access)
+    {
+    }
+
     /**
      * GET /export/my-progress
-     * Siswa export progress dirinya sendiri sebagai CSV
+     * Siswa export progress dirinya sendiri sebagai CSV. Opsional
+     * ?subject_id= untuk batasi ke satu mapel; default semua mapel siswa
+     * (sama seperti perilaku lama, yang memang selalu lintas-mapel).
      */
     public function myProgress(Request $request)
     {
-        $user     = $request->user();
+        $user = $request->user();
+
+        $subjectIds = $request->filled('subject_id')
+            ? [tap((int) $request->subject_id, fn ($id) => $this->access->assertEnrolled($user, $id))]
+            : $this->access->studentSubjectIds($user);
+
         $masteries = StudentTopicMastery::where('user_id', $user->id)
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->get();
 
         $logs = LearningLog::where('user_id', $user->id)
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->latest()
             ->get();
 
         $preTests  = TestResult::where('user_id', $user->id)
             ->where('type', 'pre_test')
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->get();
 
         $postTests = TestResult::where('user_id', $user->id)
             ->where('type', 'post_test')
+            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->get();
 
@@ -93,16 +109,29 @@ class ExportController extends Controller
 
     /**
      * GET /guru/export/students
-     * Guru export semua data mastery siswa sebagai CSV
+     * Guru export data mastery siswa sebagai CSV.
+     *
+     * PERBAIKAN: dulu ini mengekspor SEMUA siswa di seluruh sistem tanpa
+     * filter apapun (User::where('role','siswa')) — guru manapun bisa
+     * lihat & unduh data siswa dari mapel guru lain. Sekarang dibatasi ke
+     * siswa yang terdaftar di mata pelajaran yang diampu guru ini saja.
+     * Opsional ?subject_id= untuk batasi ke satu mapel spesifik.
      */
     public function allStudents(Request $request)
     {
+        $user = $request->user();
+
+        $subjectIds = $request->filled('subject_id')
+            ? [tap((int) $request->subject_id, fn ($id) => $this->access->assertTeaches($user, $id))]
+            : $this->access->teacherSubjectIds($user);
+
         $students = User::where('role', 'siswa')
-            ->with(['studentMasteries.topic'])
+            ->whereHas('subjectsEnrolled', fn ($q) => $q->whereIn('subjects.id', $subjectIds))
+            ->with(['studentMasteries' => fn ($q) => $q->whereHas('topic', fn ($t) => $t->whereIn('subject_id', $subjectIds))->with('topic')])
             ->get();
 
-        $csv  = "LAPORAN MASTERY SELURUH SISWA\n";
-        $csv .= "Diekspor oleh," . $request->user()->name . "\n";
+        $csv  = "LAPORAN MASTERY SISWA\n";
+        $csv .= "Diekspor oleh," . $user->name . "\n";
         $csv .= "Tanggal," . now()->format('d/m/Y H:i') . "\n\n";
 
         $csv .= "Nama Siswa,Email,Rata-rata Mastery,Level PBL,"

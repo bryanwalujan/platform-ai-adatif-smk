@@ -47,4 +47,20 @@ return Application::configure(basePath: dirname(__DIR__))
                 ], 401);
             }
         });
+
+        // TAMBAH: abort(403/422/...) & throw HttpException (dipakai luas oleh
+        // SubjectAccessService & controller lain untuk otorisasi mata pelajaran)
+        // harus tetap JSON di jalur API meskipun klien tidak kirim header
+        // `Accept: application/json` secara eksplisit — sebelumnya balik jadi
+        // halaman error HTML default Laravel untuk request semacam itu.
+        $exceptions->render(function (
+            \Symfony\Component\HttpKernel\Exception\HttpException $e,
+            Request $request
+        ) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => $e->getMessage() ?: 'Request tidak dapat diproses.',
+                ], $e->getStatusCode());
+            }
+        });
     })->create();
