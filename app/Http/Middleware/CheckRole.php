@@ -22,9 +22,17 @@ class CheckRole
     public function handle(Request $request, Closure $next, string $role): Response
     {
         if (! $request->user() || $request->user()->role !== $role) {
-            return response()->json([
-                'message' => 'Akses ditolak. Hanya ' . $role . ' yang dapat mengakses halaman ini.',
-            ], 403);
+            // Panel web admin (routes/web.php, guard session) mengharapkan
+            // halaman/redirect, bukan JSON — beda dari klien API (Flutter,
+            // selalu kirim Accept: application/json). Klien API tidak
+            // terpengaruh sama sekali oleh percabangan ini.
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Akses ditolak. Hanya ' . $role . ' yang dapat mengakses halaman ini.',
+                ], 403);
+            }
+
+            abort(403, 'Akses ditolak. Hanya ' . $role . ' yang dapat mengakses halaman ini.');
         }
 
         return $next($request);

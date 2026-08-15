@@ -5,22 +5,26 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Subject;
 use App\Models\User;
-use App\Services\NotificationService;
+use App\Services\AdminManagementService;
 use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
+    public function __construct(private AdminManagementService $admin)
+    {
+    }
+
     /**
      * GET /admin/dashboard
      */
     public function dashboard()
     {
         return response()->json([
-            'total_siswa'          => User::where('role', 'siswa')->count(),
-            'total_guru'           => User::where('role', 'guru')->count(),
-            'guru_pending'         => User::where('role', 'guru')->where('status', 'pending')->count(),
-            'total_subjects'       => Subject::count(),
-            'subjects_active'      => Subject::where('is_active', true)->count(),
+            'total_siswa'     => User::where('role', 'siswa')->count(),
+            'total_guru'      => User::where('role', 'guru')->count(),
+            'guru_pending'    => User::where('role', 'guru')->where('status', 'pending')->count(),
+            'total_subjects'  => Subject::count(),
+            'subjects_active' => Subject::where('is_active', true)->count(),
         ]);
     }
 
@@ -42,35 +46,23 @@ class AdminController extends Controller
     /**
      * POST /admin/teachers/{id}/approve
      */
-    public function approveTeacher($id, NotificationService $notifications)
+    public function approveTeacher($id)
     {
         $teacher = User::where('role', 'guru')->findOrFail($id);
-        $teacher->update(['status' => 'active']);
+        $this->admin->approveTeacher($teacher);
 
-        $notifications->send(
-            userId:    $teacher->id,
-            title:     '✅ Akun Disetujui',
-            message:   'Akun guru Anda sudah disetujui admin. Selamat mengajar!',
-        );
-
-        return response()->json(['message' => 'Akun guru berhasil disetujui', 'user' => $teacher]);
+        return response()->json(['message' => 'Akun guru berhasil disetujui', 'user' => $teacher->fresh()]);
     }
 
     /**
      * POST /admin/teachers/{id}/reject
      */
-    public function rejectTeacher($id, NotificationService $notifications)
+    public function rejectTeacher($id)
     {
         $teacher = User::where('role', 'guru')->findOrFail($id);
-        $teacher->update(['status' => 'rejected']);
+        $this->admin->rejectTeacher($teacher);
 
-        $notifications->send(
-            userId:    $teacher->id,
-            title:     '❌ Pendaftaran Ditolak',
-            message:   'Maaf, pendaftaran akun guru Anda ditolak admin. Hubungi sekolah untuk info lebih lanjut.',
-        );
-
-        return response()->json(['message' => 'Akun guru berhasil ditolak', 'user' => $teacher]);
+        return response()->json(['message' => 'Akun guru berhasil ditolak', 'user' => $teacher->fresh()]);
     }
 
     // ==================== KELOLA USER ====================
@@ -114,9 +106,9 @@ class AdminController extends Controller
         ]);
 
         $user = User::findOrFail($id);
-        $user->update(['status' => $validated['status']]);
+        $this->admin->updateUserStatus($user, $validated['status']);
 
-        return response()->json(['message' => 'Status akun berhasil diperbarui', 'user' => $user]);
+        return response()->json(['message' => 'Status akun berhasil diperbarui', 'user' => $user->fresh()]);
     }
 
     // ==================== KELOLA MATA PELAJARAN ====================
@@ -157,19 +149,9 @@ class AdminController extends Controller
             'email' => 'required|email|exists:users,email',
         ]);
 
-        $teacher = User::where('email', $validated['email'])->where('role', 'guru')->first();
+        $result = $this->admin->addTeacherToSubject($subject, $validated['email']);
 
-        if (! $teacher) {
-            return response()->json(['message' => 'User dengan email tersebut bukan guru'], 422);
-        }
-
-        if ($subject->teachers()->where('users.id', $teacher->id)->exists()) {
-            return response()->json(['message' => 'Guru sudah menjadi pengampu mata pelajaran ini'], 422);
-        }
-
-        $subject->teachers()->attach($teacher->id);
-
-        return response()->json(['message' => 'Guru berhasil ditambahkan sebagai pengampu'], 201);
+        return response()->json(['message' => $result['message']], $result['ok'] ? 201 : 422);
     }
 
     /**
@@ -178,7 +160,7 @@ class AdminController extends Controller
     public function removeTeacher($id, $userId)
     {
         $subject = Subject::findOrFail($id);
-        $subject->teachers()->detach($userId);
+        $this->admin->removeTeacherFromSubject($subject, (int) $userId);
 
         return response()->json(['message' => 'Guru berhasil dilepas dari mata pelajaran']);
     }
@@ -191,7 +173,7 @@ class AdminController extends Controller
     public function deactivateSubject($id)
     {
         $subject = Subject::findOrFail($id);
-        $subject->update(['is_active' => false]);
+        $this->admin->deactivateSubject($subject);
 
         return response()->json(['message' => "Mata pelajaran \"{$subject->name}\" berhasil dinonaktifkan"]);
     }
