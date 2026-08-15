@@ -46,7 +46,7 @@
                             <td>{{ $user->email }}</td>
                             <td><span class="badge badge-{{ $user->role }}">{{ $user->role }}</span></td>
                             <td><span class="badge badge-{{ $user->status }}">{{ $user->status }}</span></td>
-                            <td>{{ $user->created_at->format('d M Y') }}</td>
+                            <td>{{ $user->created_at?->format('d M Y') ?? '-' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

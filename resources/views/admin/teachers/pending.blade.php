@@ -23,7 +23,7 @@
                         <tr>
                             <td>{{ $teacher->name }}</td>
                             <td>{{ $teacher->email }}</td>
-                            <td>{{ $teacher->created_at->format('d M Y, H:i') }}</td>
+                            <td>{{ $teacher->created_at?->format('d M Y, H:i') ?? '-' }}</td>
                             <td class="actions">
                                 <form method="POST" action="{{ route('admin.teachers.approve', $teacher->id) }}">
                                     @csrf
