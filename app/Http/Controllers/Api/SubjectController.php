@@ -127,8 +127,34 @@ class SubjectController extends Controller
     }
 
     /**
+     * GET /guru/students/search?q=...
+     * Cari siswa berdasarkan NAMA (bukan email persis) — dipakai form
+     * tambah siswa manual di Flutter: guru ketik nama, muncul daftar
+     * kandidat (nama + email buat bedain kalau ada nama sama), tinggal
+     * pilih salah satu.
+     */
+    public function searchStudents(Request $request)
+    {
+        $query = trim((string) $request->get('q', ''));
+
+        if (mb_strlen($query) < 2) {
+            return response()->json([]);
+        }
+
+        $students = User::where('role', 'siswa')
+            ->where('name', 'like', '%' . $query . '%')
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'email']);
+
+        return response()->json($students);
+    }
+
+    /**
      * POST /guru/subjects/{id}/students
-     * Assign manual siswa ke mapel berdasarkan email (tanpa perlu kode kelas).
+     * Assign manual siswa ke mapel — dari hasil pencarian nama (user_id)
+     * ATAU langsung pakai email persis (dipertahankan untuk kompatibilitas/
+     * kalau ada klien lain yang masih kirim email).
      */
     public function addStudent(Request $request, $id)
     {
@@ -136,13 +162,16 @@ class SubjectController extends Controller
         $this->authorize('manage', $subject);
 
         $validated = $request->validate([
-            'email' => 'required|email|exists:users,email',
+            'user_id' => 'required_without:email|integer|exists:users,id',
+            'email'   => 'required_without:user_id|email|exists:users,email',
         ]);
 
-        $student = User::where('email', $validated['email'])->first();
+        $student = isset($validated['user_id'])
+            ? User::find($validated['user_id'])
+            : User::where('email', $validated['email'])->first();
 
         if (! $student->isStudent()) {
-            return response()->json(['message' => 'User dengan email tersebut bukan siswa'], 422);
+            return response()->json(['message' => 'User yang dipilih bukan siswa'], 422);
         }
 
         if ($subject->students()->where('users.id', $student->id)->exists()) {

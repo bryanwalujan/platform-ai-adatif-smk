@@ -160,6 +160,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/dashboard',                         [TeacherController::class, 'dashboard']);
         Route::get('/students',                          [TeacherController::class, 'students']);
+        Route::get('/students/search',                   [SubjectController::class, 'searchStudents']);
         Route::get('/students/{studentId}/progress',     [TeacherController::class, 'studentProgress']);
         Route::get('/students/{studentId}/mastery',      [TeacherController::class, 'studentMastery']);
         Route::get('/students/{studentId}/interactions', [InteractionLogController::class, 'studentSummary']);
