@@ -9,6 +9,7 @@ class PblProject extends Model
     protected $fillable = [
         'user_id',
         'topic_id',
+        'subject_id',
         'title',
         'description',
         'level',
@@ -29,8 +30,9 @@ class PblProject extends Model
         'graded_at'       => 'datetime',
     ];
 
-    public function user()  { return $this->belongsTo(User::class); }
-    public function topic() { return $this->belongsTo(Topic::class); }
+    public function user()    { return $this->belongsTo(User::class); }
+    public function topic()   { return $this->belongsTo(Topic::class); }
+    public function subject() { return $this->belongsTo(Subject::class); }
 
     // Rubrik penilaian PBL animasi SMK — 4 kriteria dengan bobot
     public static function rubricCriteria(): array

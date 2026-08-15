@@ -21,6 +21,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',           // ← Ditambahkan
+        'status',         // ← Ditambahkan: active | pending | rejected (approval akun guru)
     ];
 
     /**
@@ -63,6 +64,24 @@ class User extends Authenticatable
     }
 
     /**
+     * Mata pelajaran yang diampu user ini sebagai guru (co-teaching).
+     */
+    public function subjectsTeaching()
+    {
+        return $this->belongsToMany(Subject::class, 'subject_teacher')->withTimestamps();
+    }
+
+    /**
+     * Mata pelajaran yang diikuti user ini sebagai siswa.
+     */
+    public function subjectsEnrolled()
+    {
+        return $this->belongsToMany(Subject::class, 'subject_student')
+            ->withPivot(['enrollment_type', 'enrolled_at'])
+            ->withTimestamps();
+    }
+
+    /**
      * Cek apakah user adalah Guru
      */
     public function isTeacher(): bool
@@ -76,5 +95,21 @@ class User extends Authenticatable
     public function isStudent(): bool
     {
         return $this->role === 'siswa';
+    }
+
+    /**
+     * Cek apakah user adalah Admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    /**
+     * Cek apakah akun guru masih menunggu approval admin.
+     */
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
     }
 }

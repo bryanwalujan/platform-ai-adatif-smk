@@ -9,7 +9,12 @@ class Topic extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'description', 'order'];
+    protected $fillable = ['subject_id', 'title', 'description', 'order'];
+
+    public function subject()
+    {
+        return $this->belongsTo(Subject::class);
+    }
 
     public function materials()
     {
