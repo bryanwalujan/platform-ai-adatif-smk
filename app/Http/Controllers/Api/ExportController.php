@@ -8,13 +8,16 @@ use App\Models\StudentTopicMastery;
 use App\Models\User;
 use App\Models\LearningLog;
 use App\Models\TestResult;
+use App\Services\AdaptiveEngineService;
 use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
 class ExportController extends Controller
 {
-    public function __construct(private SubjectAccessService $access)
-    {
+    public function __construct(
+        private SubjectAccessService $access,
+        private AdaptiveEngineService $engine,
+    ) {
     }
 
     /**
@@ -54,12 +57,13 @@ class ExportController extends Controller
             ->with('topic:id,title')
             ->get();
 
-        $avgMastery = $masteries->avg('mastery_level') ?? 0;
-        $pblLevel   = match(true) {
-            $avgMastery >= 85 => 'Lanjutan',
-            $avgMastery >= 65 => 'Menengah',
-            default           => 'Dasar',
-        };
+        // PERBAIKAN: pakai AdaptiveEngineService (mastery efektif, kena decay)
+        // konsisten dengan yang dilihat siswa di app — dulu avg/pbl_level
+        // dihitung ulang di sini dari mastery_level mentah dengan threshold
+        // sendiri (tanpa syarat cakupan topik), bisa beda dari yang
+        // ditampilkan di RecommendationScreen/MasteryScreen.
+        $avgMastery = $this->engine->getAverageMastery($user->id, $subjectIds);
+        $pblLevel   = $this->engine->getPBLLevel($user->id, $subjectIds);
 
         // Build CSV
         $csv = "LAPORAN PROGRESS BELAJAR\n";
@@ -74,7 +78,7 @@ class ExportController extends Controller
         $csv .= "Topik,Mastery Level,Percobaan,Terakhir Diakses\n";
         foreach ($masteries as $m) {
             $csv .= "\"{$m->topic?->title}\","
-                  . round($m->mastery_level, 1) . "%,"
+                  . round($this->engine->effectiveMastery($m), 1) . "%,"
                   . $m->attempts . ","
                   . ($m->last_accessed?->format('d/m/Y') ?? '-') . "\n";
         }
@@ -137,15 +141,16 @@ class ExportController extends Controller
         $csv .= "Nama Siswa,Email,Rata-rata Mastery,Level PBL,"
               . "Topik Dikuasai,Total Topik\n";
 
+        // PERBAIKAN: pakai AdaptiveEngineService (mastery efektif + pbl_level
+        // dengan syarat cakupan topik) — konsisten dengan yang dilihat guru
+        // di TeacherAdaptiveScreen/StudentProgressScreen, dulu dihitung ulang
+        // di sini dari mastery_level mentah dengan threshold sendiri.
         foreach ($students as $s) {
-            $avg      = $s->studentMasteries->avg('mastery_level') ?? 0;
-            $level    = match(true) {
-                $avg >= 85 => 'Lanjutan',
-                $avg >= 65 => 'Menengah',
-                default    => 'Dasar',
-            };
+            $avg      = $this->engine->getAverageMastery($s->id, $subjectIds);
+            $level    = $this->engine->getPBLLevel($s->id, $subjectIds);
             $mastered = $s->studentMasteries
-                ->where('mastery_level', '>=', 75)->count();
+                ->filter(fn ($m) => $this->engine->effectiveMastery($m) >= 75)
+                ->count();
             $total    = $s->studentMasteries->count();
 
             $csv .= "\"{$s->name}\",{$s->email},"
@@ -161,7 +166,7 @@ class ExportController extends Controller
             foreach ($s->studentMasteries as $m) {
                 $csv .= "\"{$s->name}\","
                       . "\"{$m->topic?->title}\","
-                      . round($m->mastery_level, 1) . "%,"
+                      . round($this->engine->effectiveMastery($m), 1) . "%,"
                       . $m->attempts . "\n";
             }
         }

@@ -11,6 +11,10 @@ use App\Models\PblProject;
 
 class NotificationService
 {
+    public function __construct(private AdaptiveEngineService $engine)
+    {
+    }
+
     /**
      * Generate notifikasi otomatis berdasarkan data AI.
      * Dipanggil saat siswa buka halaman notifikasi.
@@ -26,23 +30,34 @@ class NotificationService
     }
 
     /**
-     * Notifikasi jika ada topik dengan mastery < 45
+     * Notifikasi jika ada topik dengan mastery EFEKTIF < 45.
+     *
+     * PERBAIKAN: dulu filter langsung di query pakai mastery_level mentah —
+     * sekarang decay (efek "lupa") cuma dihitung saat dibaca, bukan kolom
+     * di DB, jadi kandidat diambil dulu semua lalu difilter di PHP pakai
+     * effectiveMastery(). Konsisten dengan yang dilihat siswa di
+     * MasteryController/RecommendationController dan guru di TeacherController
+     * — tanpa ini, siswa yang mastery-nya "kelihatan aman" di DB tapi
+     * sudah lama tidak disentuh (sebenarnya sudah menurun) tidak pernah
+     * diingatkan.
      */
     private function checkLowMastery(int $userId): void
     {
-        $lowMasteries = StudentTopicMastery::where('user_id', $userId)
-            ->where('mastery_level', '<', 45)
+        $candidates = StudentTopicMastery::where('user_id', $userId)
             ->with('topic:id,title')
             ->get();
 
-        foreach ($lowMasteries as $m) {
+        foreach ($candidates as $m) {
             if (!$m->topic) continue;
+
+            $effective = $this->engine->effectiveMastery($m);
+            if ($effective >= 45) continue;
 
             $this->createIfNotExists($userId, [
                 'type'    => 'recommendation',
                 'title'   => '📚 Perlu Perhatian',
                 'message' => "Mastery kamu di topik \"{$m->topic->title}\" masih "
-                           . round($m->mastery_level) . "%. Yuk ulangi materinya!",
+                           . round($effective) . "%. Yuk ulangi materinya!",
                 'data'    => ['topic_id' => $m->topic_id, 'flag' => 'low_mastery'],
             ]);
         }
@@ -118,24 +133,30 @@ class NotificationService
     }
 
     /**
-     * Notifikasi achievement saat mastery >= 85
+     * Notifikasi achievement saat mastery EFEKTIF >= 85 (lihat catatan
+     * checkLowMastery() — filter dilakukan di PHP karena decay bukan
+     * kolom DB). Sengaja pakai nilai efektif, bukan mastery mentah — kalau
+     * sudah lama tidak disentuh dan menurun, tidak akan diberi selamat
+     * seolah-olah masih menguasai hari ini.
      */
     private function checkAchievement(int $userId): void
     {
-        $highMasteries = StudentTopicMastery::where('user_id', $userId)
-            ->where('mastery_level', '>=', 85)
+        $candidates = StudentTopicMastery::where('user_id', $userId)
             ->with('topic:id,title')
             ->get();
 
-        foreach ($highMasteries as $m) {
+        foreach ($candidates as $m) {
             if (!$m->topic) continue;
+
+            $effective = $this->engine->effectiveMastery($m);
+            if ($effective < 85) continue;
 
             $this->createIfNotExists($userId, [
                 'type'    => 'achievement',
                 'title'   => '🏆 Topik Dikuasai!',
                 'message' => "Selamat! Kamu sudah menguasai topik "
                            . "\"{$m->topic->title}\" dengan mastery "
-                           . round($m->mastery_level) . "%!",
+                           . round($effective) . "%!",
                 'data'    => ['topic_id' => $m->topic_id, 'flag' => 'achievement'],
             ]);
         }
