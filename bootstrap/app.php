@@ -63,4 +63,24 @@ return Application::configure(basePath: dirname(__DIR__))
                 ], $e->getStatusCode());
             }
         });
+
+        // TAMBAH: ValidationException (dari $request->validate() DAN throw
+        // manual seperti di AuthController::login()) — sama seperti
+        // HttpException di atas, defaultnya Laravel REDIRECT (302) untuk
+        // request yang tidak eksplisit kirim Accept: application/json.
+        // Flutter (Dio) di app ini TIDAK PERNAH kirim header itu — jadi
+        // SEMUA validasi gagal di SELURUH endpoint selama ini kemungkinan
+        // balik jadi HTML redirect ke Flutter, bukan pesan error yang jelas.
+        // Ditemukan saat testing alur verifikasi email (2026-08-17).
+        $exceptions->render(function (
+            \Illuminate\Validation\ValidationException $e,
+            Request $request
+        ) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                    'errors'  => $e->errors(),
+                ], $e->status);
+            }
+        });
     })->create();

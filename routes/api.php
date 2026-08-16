@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\DiscussionController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\EmailVerificationController;
+use App\Http\Controllers\Api\PasswordResetController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
@@ -27,6 +29,13 @@ use Illuminate\Support\Facades\Storage;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
+
+// Verifikasi email (kode 6-digit saat register) & lupa password — publik
+// karena user belum punya token di titik ini.
+Route::post('/email/verify',    [EmailVerificationController::class, 'verify']);
+Route::post('/email/resend',    [EmailVerificationController::class, 'resend']);
+Route::post('/password/forgot', [PasswordResetController::class, 'forgot']);
+Route::post('/password/reset',  [PasswordResetController::class, 'reset']);
 
 /*
 |--------------------------------------------------------------------------

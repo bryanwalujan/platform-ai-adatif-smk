@@ -13,6 +13,12 @@ class AuthController extends Controller
 {
     /**
      * POST /register
+     *
+     * PERBAIKAN: tidak lagi langsung memberi token/auto-login. Kode
+     * verifikasi 6-digit dikirim ke email dulu — akun baru cuma bisa
+     * login (dapat token) setelah verifikasi lewat
+     * EmailVerificationController::verify(). Login harian setelahnya
+     * TIDAK perlu kode apapun lagi, cukup email+password seperti biasa.
      */
     public function register(Request $request)
     {
@@ -33,15 +39,17 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
             'role'     => $role,
             // Guru baru menunggu approval admin dulu sebelum bisa pakai fitur
-            // guru (lihat middleware EnsureApproved) — siswa langsung aktif.
+            // guru (lihat middleware EnsureApproved) — siswa langsung aktif
+            // begitu email-nya diverifikasi. Dua gate independen: verifikasi
+            // email (semua role) lalu approval admin (guru saja).
             'status'   => $role === 'guru' ? 'pending' : 'active',
         ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        EmailVerificationController::sendVerificationCode($user);
 
         return response()->json([
-            'token' => $token,
-            'user'  => $this->formatUser($user),
+            'message' => 'Akun berhasil dibuat. Kode verifikasi sudah dikirim ke email Anda.',
+            'email'   => $user->email,
         ], 201);
     }
 
@@ -63,6 +71,17 @@ class AuthController extends Controller
             ]);
         }
 
+        // Belum verifikasi email -> belum boleh dapat token. Balikan 403
+        // dengan flag khusus supaya Flutter tahu harus arahkan ke layar
+        // verifikasi (bukan sekadar "email/password salah").
+        if (! $user->hasVerifiedEmail()) {
+            return response()->json([
+                'message'          => 'Email belum diverifikasi. Cek kotak masuk email Anda.',
+                'needs_verification' => true,
+                'email'            => $user->email,
+            ], 403);
+        }
+
         // Hapus token lama agar tidak menumpuk
         $user->tokens()->delete();
 
@@ -70,7 +89,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user'  => $this->formatUser($user),
+            'user'  => $user->toAuthArray(),
         ]);
     }
 
@@ -79,7 +98,7 @@ class AuthController extends Controller
      */
     public function me(Request $request)
     {
-        return response()->json($this->formatUser($request->user()));
+        return response()->json($request->user()->toAuthArray());
     }
 
     /**
@@ -110,7 +129,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Profil berhasil diperbarui',
-            'user'    => $this->formatUser($user->fresh()),
+            'user'    => $user->fresh()->toAuthArray(),
         ]);
     }
 
@@ -138,27 +157,5 @@ class AuthController extends Controller
             'message'   => 'Foto profil berhasil diperbarui',
             'photo_url' => Storage::url($path),
         ]);
-    }
-
-    /**
-     * Format user untuk response — konsisten di semua endpoint
-     */
-    private function formatUser(User $user): array
-    {
-        return [
-            'id'         => $user->id,
-            'name'       => $user->name,
-            'email'      => $user->email,
-            'role'       => $user->role,
-            'is_guru'    => $user->role === 'guru',
-            'is_admin'   => $user->role === 'admin',
-            // 'status' hanya relevan buat guru (pending/active/rejected),
-            // siswa & admin selalu 'active'. Field baru — client lama yang
-            // belum tahu field ini tetap aman, cukup diabaikan.
-            'status'     => $user->status,
-            'photo_url'  => $user->photo_path
-                            ? Storage::url($user->photo_path)
-                            : null,
-        ];
     }
 }

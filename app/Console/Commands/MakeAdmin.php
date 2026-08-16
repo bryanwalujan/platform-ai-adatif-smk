@@ -48,11 +48,14 @@ class MakeAdmin extends Command
         }
 
         $admin = User::create([
-            'name'     => $name,
-            'email'    => $email,
-            'password' => Hash::make($password),
-            'role'     => 'admin',
-            'status'   => 'active',
+            'name'              => $name,
+            'email'             => $email,
+            'password'          => Hash::make($password),
+            'role'              => 'admin',
+            'status'            => 'active',
+            // Dibuat lewat CLI trusted di server — tidak lewat alur kode
+            // verifikasi email publik, jadi langsung ditandai terverifikasi.
+            'email_verified_at' => now(),
         ]);
 
         $this->info("Akun admin berhasil dibuat: {$admin->name} <{$admin->email}>");
