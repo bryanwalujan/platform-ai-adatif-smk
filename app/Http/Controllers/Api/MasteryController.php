@@ -31,18 +31,24 @@ class MasteryController extends Controller
             ? [$this->validatedSubjectId($request, $user)]
             : $this->access->studentSubjectIds($user);
 
+        // PERBAIKAN: 'mastery_level' yang ditampilkan sekarang nilai EFEKTIF
+        // (kena decay kalau lama tidak disentuh), bukan mastery_level mentah —
+        // supaya angka yang dilihat siswa/guru konsisten dengan yang dipakai
+        // rekomendasi & level PBL. orderBy dipindah ke PHP karena decay
+        // dihitung saat baca, tidak ada di kolom database.
         $masteries = StudentTopicMastery::where('user_id', $user->id)
             ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
-            ->orderByDesc('mastery_level')
             ->get()
             ->map(fn($m) => [
                 'topic_id'      => $m->topic_id,
                 'topic_title'   => $m->topic?->title ?? 'Topik tidak ditemukan',
-                'mastery_level' => (float) $m->mastery_level,
+                'mastery_level' => $this->engine->effectiveMastery($m),
                 'attempts'      => $m->attempts,
                 'last_accessed' => $m->last_accessed?->toIso8601String(),
-            ]);
+            ])
+            ->sortByDesc('mastery_level')
+            ->values();
 
         return response()->json($masteries);
     }

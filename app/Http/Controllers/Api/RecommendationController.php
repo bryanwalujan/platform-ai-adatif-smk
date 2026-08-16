@@ -48,13 +48,15 @@ class RecommendationController extends Controller
 
         $recommendations = $this->engine->getRecommendations($userId, $subjectIds);
         $pblLevel        = $this->engine->getPBLLevel($userId, $subjectIds);
-        $avgMastery       = StudentTopicMastery::where('user_id', $userId)
-                            ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
-                            ->avg('mastery_level') ?? 0;
+        // PERBAIKAN: dulu rata-rata dihitung langsung dari mastery_level mentah
+        // di query ini, sementara getPBLLevel() menghitungnya sendiri dari nilai
+        // efektif (kena decay) — dua angka bisa tidak konsisten satu sama lain.
+        // Sekarang keduanya lewat getAverageMastery() yang sama.
+        $avgMastery = $this->engine->getAverageMastery($userId, $subjectIds);
 
         return response()->json([
             'pbl_level'       => $pblLevel,
-            'avg_mastery'     => round((float) $avgMastery, 1),
+            'avg_mastery'     => round($avgMastery, 1),
             'recommendations' => $recommendations,
         ]);
     }
@@ -71,10 +73,22 @@ class RecommendationController extends Controller
         $masteries = StudentTopicMastery::where('user_id', $userId)
             ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
-            ->orderByDesc('mastery_level')
             ->get();
 
-        $avgMastery = $masteries->avg('mastery_level') ?? 0;
+        // PERBAIKAN: pakai mastery EFEKTIF (kena decay) konsisten di seluruh
+        // laporan — dulu 'mastery_level' mentah dipakai untuk avg, urutan
+        // tampilan, dan hitung completed_topics, jadi bisa tidak sinkron
+        // dengan pbl_level yang sudah lebih dulu pakai nilai efektif.
+        $withEffective = $masteries
+            ->map(fn ($m) => [
+                'topic_title'   => $m->topic?->title ?? '-',
+                'mastery_level' => $this->engine->effectiveMastery($m),
+                'attempts'      => $m->attempts,
+            ])
+            ->sortByDesc('mastery_level')
+            ->values();
+
+        $avgMastery = $this->engine->getAverageMastery($userId, $subjectIds);
         $pblLevel   = $this->engine->getPBLLevel($userId, $subjectIds);
 
         return response()->json([
@@ -83,16 +97,12 @@ class RecommendationController extends Controller
                 'email' => $user->email,
             ],
             'pbl_level'        => $pblLevel,
-            'avg_mastery'      => round((float) $avgMastery, 1),
-            'mastery_list'     => $masteries->map(fn($m) => [
-                'topic_title'   => $m->topic?->title ?? '-',
-                'mastery_level' => (float) $m->mastery_level,
-                'attempts'      => $m->attempts,
-            ]),
+            'avg_mastery'      => round($avgMastery, 1),
+            'mastery_list'     => $withEffective,
             // PERBAIKAN: dulu Topic::count() global (semua mapel di seluruh
             // sistem) — sekarang dibatasi ke mapel yang relevan buat siswa ini.
             'total_topics'     => Topic::whereIn('subject_id', $subjectIds)->count(),
-            'completed_topics' => $masteries->where('mastery_level', '>=', 75)->count(),
+            'completed_topics' => $withEffective->where('mastery_level', '>=', 75)->count(),
             'generated_at'     => now()->toIso8601String(),
         ]);
     }

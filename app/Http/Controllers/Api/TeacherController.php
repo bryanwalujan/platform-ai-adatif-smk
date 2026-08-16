@@ -7,14 +7,17 @@ use App\Models\PblProject;
 use App\Models\StudentTopicMastery;
 use App\Models\Topic;
 use App\Models\User;
+use App\Services\AdaptiveEngineService;
 use App\Services\NotificationService;
 use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
 class TeacherController extends Controller
 {
-    public function __construct(private SubjectAccessService $access)
-    {
+    public function __construct(
+        private SubjectAccessService $access,
+        private AdaptiveEngineService $engine,
+    ) {
     }
 
     /**
@@ -103,7 +106,13 @@ class TeacherController extends Controller
                 'id'         => $s->id,
                 'name'       => $s->name,
                 'email'      => $s->email,
-                'avg_mastery' => round($s->studentMasteries->avg('mastery_level') ?? 0, 1),
+                // PERBAIKAN: pakai mastery EFEKTIF (kena decay) supaya guru
+                // tidak melihat siswa "terlihat aman" padahal sudah lama tidak
+                // sentuh materinya — konsisten dengan yang dilihat siswa sendiri.
+                'avg_mastery' => round(
+                    $s->studentMasteries->avg(fn ($m) => $this->engine->effectiveMastery($m)) ?? 0,
+                    1
+                ),
                 // dipakai StudentListScreen: jumlah topik yang sudah dipelajari
                 'student_masteries_count' => $s->studentMasteries->count(),
             ]);
@@ -121,14 +130,18 @@ class TeacherController extends Controller
 
         $student = User::where('role', 'siswa')->findOrFail($studentId);
 
+        // PERBAIKAN: mastery_level yang dilihat guru sekarang nilai EFEKTIF
+        // (kena decay), dan pbl_level dihitung lewat AdaptiveEngineService
+        // (dulu di-duplikasi di sini dengan threshold sendiri, dari mastery
+        // mentah pula) — supaya angka yang dilihat guru sama persis dengan
+        // yang dilihat siswa sendiri di RecommendationController/MasteryController.
         $masteries = StudentTopicMastery::where('user_id', $studentId)
             ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
-            ->orderByDesc('mastery_level')
             ->get()
             ->map(fn($m) => [
                 'topic_title'   => $m->topic?->title ?? '-',
-                'mastery_level' => (float) $m->mastery_level,
+                'mastery_level' => $this->engine->effectiveMastery($m),
                 'attempts'      => $m->attempts,
                 // PERBAIKAN: pastikan tidak crash jika last_accessed null atau string
                 'last_accessed' => $m->last_accessed instanceof \Carbon\Carbon
@@ -136,16 +149,12 @@ class TeacherController extends Controller
                                     : ($m->last_accessed
                                         ? \Carbon\Carbon::parse($m->last_accessed)->diffForHumans()
                                         : '-'),
-            ]);
+            ])
+            ->sortByDesc('mastery_level')
+            ->values();
 
-        $avgMastery = $masteries->avg('mastery_level') ?? 0;
-
-        // PERBAIKAN: pbl_level dari mastery, bukan score proyek
-        $pblLevel = match(true) {
-            $avgMastery >= 85 => 'Lanjutan',
-            $avgMastery >= 65 => 'Menengah',
-            default           => 'Dasar',
-        };
+        $avgMastery = $this->engine->getAverageMastery((int) $studentId, $subjectIds);
+        $pblLevel   = $this->engine->getPBLLevel((int) $studentId, $subjectIds);
 
         $projects = PblProject::where('user_id', $studentId)
             ->whereIn('subject_id', $subjectIds)
@@ -184,15 +193,16 @@ class TeacherController extends Controller
         $masteries = StudentTopicMastery::where('user_id', $studentId)
             ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
-            ->orderByDesc('mastery_level')
             ->get()
             ->map(fn($m) => [
                 'topic_id'      => $m->topic_id,
                 'topic_title'   => $m->topic?->title ?? '-',
-                'mastery_level' => (float) $m->mastery_level,
+                'mastery_level' => $this->engine->effectiveMastery($m),
                 'attempts'      => $m->attempts,
                 'last_accessed' => $m->last_accessed?->toIso8601String(),
-            ]);
+            ])
+            ->sortByDesc('mastery_level')
+            ->values();
 
         return response()->json($masteries);
     }

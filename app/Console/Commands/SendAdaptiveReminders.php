@@ -9,6 +9,7 @@ use App\Models\StudentTopicMastery;
 use App\Models\InteractionLog;
 use App\Models\TestResult;
 use App\Models\Topic;
+use App\Services\AdaptiveEngineService;
 use App\Services\NotificationService;
 use Illuminate\Console\Command;
 
@@ -17,7 +18,7 @@ class SendAdaptiveReminders extends Command
     protected $signature   = 'adaptive:remind';
     protected $description = 'Kirim notifikasi proaktif AI ke semua siswa';
 
-    public function handle(NotificationService $notifService): void
+    public function handle(NotificationService $notifService, AdaptiveEngineService $engine): void
     {
         // Laravel 12: inject via handle(), bukan constructor
         $students = User::where('role', 'siswa')->get();
@@ -25,14 +26,14 @@ class SendAdaptiveReminders extends Command
         $this->info("Memproses {$students->count()} siswa...");
 
         foreach ($students as $student) {
-            $this->checkAndNotify($student, $notifService);
+            $this->checkAndNotify($student, $notifService, $engine);
             $this->line("  ✓ {$student->name}");
         }
 
         $this->info('Selesai.');
     }
 
-    private function checkAndNotify(User $student, NotificationService $notifService): void
+    private function checkAndNotify(User $student, NotificationService $notifService, AdaptiveEngineService $engine): void
     {
         $userId = $student->id;
 
@@ -57,21 +58,30 @@ class SendAdaptiveReminders extends Command
             ]);
         }
 
-        // 2. Topik mastery < 45 yang belum diulang 3 hari
-        $lowMasteries = StudentTopicMastery::where('user_id', $userId)
-            ->where('mastery_level', '<', 45)
+        // 2. Topik mastery EFEKTIF < 45 (mempertimbangkan efek "lupa"/decay)
+        // yang belum diulang 3 hari.
+        // PERBAIKAN: dulu filter langsung di query pakai mastery_level mentah
+        // — sekarang AdaptiveEngineService punya decay yang cuma dihitung saat
+        // dibaca (bukan kolom di DB), jadi diambil dulu semua kandidat lalu
+        // difilter di PHP pakai effectiveMastery(). Tanpa ini, siswa yang
+        // mastery-nya "kelihatan aman" di DB tapi sudah lama tidak disentuh
+        // (jadi sebenarnya sudah menurun) tidak akan pernah diingatkan.
+        $candidateMasteries = StudentTopicMastery::where('user_id', $userId)
             ->where('last_accessed', '<', now()->subDays(3))
             ->with('topic:id,title')
             ->get();
 
-        foreach ($lowMasteries as $m) {
+        foreach ($candidateMasteries as $m) {
             if (!$m->topic) continue;
+
+            $effective = $engine->effectiveMastery($m);
+            if ($effective >= 45) continue;
 
             $notifService->createIfPublic($userId, [
                 'type'    => 'recommendation',
                 'title'   => '📖 Saatnya Mengulang Materi',
                 'message' => "Mastery topik \"{$m->topic->title}\" kamu "
-                           . round($m->mastery_level) . "% dan sudah "
+                           . round($effective) . "% dan sudah "
                            . now()->diffInDays($m->last_accessed)
                            . " hari tidak diulang.",
                 'data'    => [
