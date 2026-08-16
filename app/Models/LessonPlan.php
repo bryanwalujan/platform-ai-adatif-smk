@@ -25,12 +25,25 @@ class LessonPlan extends Model
         'description',
         'scheduled_date',
         'is_completed',
+        'file_path',
+        'file_name',
+        'file_type',
     ];
 
     protected $casts = [
         'scheduled_date' => 'date',
         'is_completed'   => 'boolean',
     ];
+
+    // Selalu disertakan di JSON supaya index/show/store/update konsisten
+    // tanpa perlu controller membangun URL-nya manual tiap kali (beda dari
+    // MaterialController::show yang masih melakukannya manual).
+    protected $appends = ['file_url'];
+
+    public function getFileUrlAttribute(): ?string
+    {
+        return $this->file_path ? url('/api/files/' . $this->file_path) : null;
+    }
 
     public function subject()
     {
