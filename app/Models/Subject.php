@@ -58,6 +58,11 @@ class Subject extends Model
         return $this->hasMany(PblProject::class);
     }
 
+    public function lessonPlans()
+    {
+        return $this->hasMany(LessonPlan::class);
+    }
+
     /**
      * Generate kode kelas unik (6 karakter alfanumerik kapital, mis. "K3F9QX").
      * Dipakai saat membuat mapel baru maupun saat regenerate kode.

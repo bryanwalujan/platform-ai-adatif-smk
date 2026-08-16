@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\EmailVerificationController;
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\LessonPlanController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
@@ -124,6 +125,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/interaction-logs',        [InteractionLogController::class, 'store']);
     Route::get('/interaction-logs/summary', [InteractionLogController::class, 'summary']);
 
+    // RPP (Rencana Pelaksanaan Pembelajaran) — baca saja di sini, guru
+    // pengampu & siswa terdaftar mapel ini boleh lihat. Tulis/kelola ada
+    // di grup guru di bawah.
+    Route::get('/subjects/{subjectId}/lesson-plans', [LessonPlanController::class, 'index']);
+
     // Diskusi
     Route::get('/topics/{topicId}/discussions',              [DiscussionController::class, 'index']);
     Route::post('/topics/{topicId}/discussions',             [DiscussionController::class, 'store']);
@@ -189,6 +195,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/subjects/{id}/students',                    [SubjectController::class, 'students']);
         Route::post('/subjects/{id}/students',                   [SubjectController::class, 'addStudent']);
         Route::delete('/subjects/{id}/students/{studentId}',     [SubjectController::class, 'removeStudent']);
+
+        // RPP (Rencana Pelaksanaan Pembelajaran) — kelola per mapel
+        Route::post('/subjects/{subjectId}/lesson-plans',         [LessonPlanController::class, 'store']);
+        Route::get('/lesson-plans/{id}',                          [LessonPlanController::class, 'show']);
+        Route::put('/lesson-plans/{id}',                          [LessonPlanController::class, 'update']);
+        Route::delete('/lesson-plans/{id}',                       [LessonPlanController::class, 'destroy']);
+        Route::post('/lesson-plans/{id}/toggle-complete',         [LessonPlanController::class, 'toggleComplete']);
 
         // Legacy — dipertahankan untuk klien Flutter lama yang belum tahu
         // konsep mata pelajaran. subject_id di-resolve otomatis (lihat
