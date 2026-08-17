@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\StudentTopicMastery;
 use App\Models\Topic;
 use App\Services\AdaptiveEngineService;
+use App\Services\BayesianKnowledgeTracingService;
 use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
@@ -14,6 +15,7 @@ class MasteryController extends Controller
     public function __construct(
         private AdaptiveEngineService $engine,
         private SubjectAccessService $access,
+        private BayesianKnowledgeTracingService $bkt,
     ) {
     }
 
@@ -36,17 +38,32 @@ class MasteryController extends Controller
         // supaya angka yang dilihat siswa/guru konsisten dengan yang dipakai
         // rekomendasi & level PBL. orderBy dipindah ke PHP karena decay
         // dihitung saat baca, tidak ada di kolom database.
+        // BARU: 'bkt_mastery_probability' — perkiraan probabilitas penguasaan
+        // dari BayesianKnowledgeTracingService, DITAMBAHKAN di samping
+        // 'mastery_level' yang sudah ada (bukan menggantikannya) supaya
+        // perilaku yang sudah teruji & dipakai fitur lain (rekomendasi,
+        // level PBL) tidak berubah. Null kalau siswa belum pernah mengerjakan
+        // kuis pada topik itu SEJAK fitur ini ditambahkan (belum ada baris
+        // di quiz_attempts untuk ditelusuri, lihat catatan di migration-nya).
         $masteries = StudentTopicMastery::where('user_id', $user->id)
             ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
-            ->with('topic:id,title')
+            ->with('topic:id,title,subject_id')
             ->get()
-            ->map(fn($m) => [
-                'topic_id'      => $m->topic_id,
-                'topic_title'   => $m->topic?->title ?? 'Topik tidak ditemukan',
-                'mastery_level' => $this->engine->effectiveMastery($m),
-                'attempts'      => $m->attempts,
-                'last_accessed' => $m->last_accessed?->toIso8601String(),
-            ])
+            ->map(function ($m) use ($user) {
+                $sequence = $this->bkt->observationSequenceFor($user->id, $m->topic_id);
+                $bktParams = $this->bkt->getParameters($m->topic?->subject_id);
+                $bktTrace = $sequence ? $this->bkt->predictMasterySequence($sequence, $bktParams) : [];
+
+                return [
+                    'topic_id'      => $m->topic_id,
+                    'topic_title'   => $m->topic?->title ?? 'Topik tidak ditemukan',
+                    'mastery_level' => $this->engine->effectiveMastery($m),
+                    'bkt_mastery_probability' => $bktTrace ? round(end($bktTrace) * 100, 1) : null,
+                    'bkt_observations_count'  => count($sequence),
+                    'attempts'      => $m->attempts,
+                    'last_accessed' => $m->last_accessed?->toIso8601String(),
+                ];
+            })
             ->sortByDesc('mastery_level')
             ->values();
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quiz;
+use App\Models\QuizAttempt;
 use App\Models\TestResult;
 use App\Models\Topic;
 use App\Services\AdaptiveEngineService;
@@ -131,6 +132,22 @@ class QuizController extends Controller
                 'time_spent_minutes' => $timeSpent,
             ]);
         }
+
+        // BARU: catat SETIAP percobaan (regular/pre_test/post_test) ke log
+        // terpisah — beda dari TestResult di atas yang cuma menyimpan satu
+        // baris pre_test & satu post_test per topik. Log ini yang jadi
+        // sumber data BayesianKnowledgeTracingService melacak urutan
+        // benar/salah siswa dari waktu ke waktu (lihat catatan di migration
+        // quiz_attempts). Murni tambahan — tidak mengubah respons/perilaku
+        // endpoint ini sama sekali.
+        QuizAttempt::create([
+            'user_id'   => $user->id,
+            'quiz_id'   => $quiz->id,
+            'topic_id'  => $quiz->topic_id,
+            'quiz_type' => $quiz->type,
+            'score'     => $score,
+            'passed'    => $passed,
+        ]);
 
         // Update mastery hanya untuk kuis reguler dan post-test
         // Pre-test tidak mempengaruhi mastery (hanya mengukur kondisi awal)
