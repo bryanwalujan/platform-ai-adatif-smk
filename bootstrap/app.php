@@ -30,16 +30,12 @@ return Application::configure(basePath: dirname(__DIR__))
     // Panel web guru (/guru/*) diarahkan ke guru.login, sisanya (termasuk
     // /admin/*) tetap ke login (punya admin) — perilaku lama tidak berubah.
     $middleware->redirectGuestsTo(function (Request $request) {
-        if ($request->is('api/*') || $request->expectsJson()) {
-            return null;
-        }
+    if ($request->is('api/*') || $request->expectsJson()) {
+        return null; // return null = kembalikan 401 JSON
+    }
 
-        if ($request->is('guru*')) {
-            return route('guru.login');
-        }
-
-        return route('login');
-    });
+    return route('login'); // satu halaman login untuk semua guest web
+});
 })
     ->withExceptions(function (Exceptions $exceptions): void {
         // TAMBAH: handle unauthenticated exception untuk API
