@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\ScopesToTeacherSubjects;
 use App\Http\Controllers\Controller;
 use App\Models\PblProject;
 use App\Models\StudentTopicMastery;
@@ -14,60 +15,18 @@ use Illuminate\Http\Request;
 
 class TeacherController extends Controller
 {
+    use ScopesToTeacherSubjects;
+
     public function __construct(
         private SubjectAccessService $access,
         private AdaptiveEngineService $engine,
     ) {
     }
 
-    /**
-     * Mata pelajaran mana saja yang relevan untuk request ini.
-     *
-     * PERBAIKAN BESAR: seluruh controller ini dulu 100% global — query
-     * `User::where('role','siswa')` tanpa filter apapun, jadi guru manapun
-     * lihat SEMUA siswa & proyek di seluruh sistem, bukan cuma yang ikut
-     * mapelnya. Sekarang dibatasi ke mapel yang diampu guru ini.
-     *
-     * Kalau ?subject_id= dikirim, dipakai satu itu saja (tervalidasi guru
-     * memang mengampu). Kalau tidak, dipakai SEMUA mapel yang diampu guru
-     * ini — untuk guru yang cuma punya 1 mapel (kondisi guru lama pasca
-     * migrasi Fase 1), hasilnya identik dengan perilaku lama yang memang
-     * cuma ada 1 mapel di seluruh sistem.
-     */
-    private function relevantSubjectIds(Request $request): array
-    {
-        $user = $request->user();
-
-        if ($request->filled('subject_id')) {
-            $subjectId = (int) $request->subject_id;
-            $this->access->assertTeaches($user, $subjectId);
-
-            return [$subjectId];
-        }
-
-        return $this->access->teacherSubjectIds($user);
-    }
-
-    /**
-     * Pastikan $studentId benar-benar terdaftar di salah satu mapel yang
-     * diampu guru ini. Dulu tidak ada pengecekan sama sekali di
-     * studentProgress/studentMastery/notifyStudent — guru manapun bisa pass
-     * studentId siapapun.
-     */
-    private function assertTeachesStudent(Request $request, int $studentId): array
-    {
-        $subjectIds = $this->relevantSubjectIds($request);
-
-        $isTaught = User::where('id', $studentId)
-            ->whereHas('subjectsEnrolled', fn ($q) => $q->whereIn('subjects.id', $subjectIds))
-            ->exists();
-
-        if (! $isTaught) {
-            abort(403, 'Siswa ini tidak terdaftar di mata pelajaran yang Anda ampu.');
-        }
-
-        return $subjectIds;
-    }
+    // relevantSubjectIds() dan assertTeachesStudent() sekarang datang dari
+    // ScopesToTeacherSubjects — dipakai bareng Web\GuruPanelController
+    // supaya aturan "guru cuma boleh lihat mapel yang diampunya" tidak
+    // didefinisikan dua kali di dua tempat.
 
     /**
      * GET /guru/dashboard

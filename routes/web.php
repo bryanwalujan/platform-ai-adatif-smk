@@ -3,6 +3,35 @@
 use App\Http\Controllers\Web\AdminAuthController;
 use App\Http\Controllers\Web\AdminPanelController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Web\GuruAuthController;
+use App\Http\Controllers\Web\GuruPanelController;
+
+Route::prefix('guru')->group(function () {
+
+    // Sama seperti catatan di grup admin: nama 'guru.login' dipakai closure
+    // redirectGuestsTo() di bootstrap/app.php untuk guest yang kena redirect
+    // dari /guru/*. Lihat instruksi di bawah.
+    Route::get('/login',  [GuruAuthController::class, 'showLogin'])->name('guru.login');
+    Route::post('/login', [GuruAuthController::class, 'login'])->name('guru.login.submit');
+
+    Route::name('guru.')->middleware(['auth', 'role:guru', 'approved'])->group(function () {
+        Route::post('/logout', [GuruAuthController::class, 'logout'])->name('logout');
+
+        Route::get('/', [GuruPanelController::class, 'dashboard'])->name('dashboard');
+
+        Route::get('/students',                       [GuruPanelController::class, 'students'])->name('students.index');
+        Route::get('/students/{studentId}',            [GuruPanelController::class, 'studentShow'])->name('students.show');
+        Route::get('/students/{studentId}/notify',      [GuruPanelController::class, 'notifyStudentForm'])->name('students.notify.form');
+        Route::post('/students/{studentId}/notify',     [GuruPanelController::class, 'notifyStudent'])->name('students.notify');
+
+        Route::get('/projects/pending',                 [GuruPanelController::class, 'pendingProjects'])->name('projects.pending');
+        Route::get('/projects',                         [GuruPanelController::class, 'allProjects'])->name('projects.index');
+        Route::get('/projects/{projectId}/grade',       [GuruPanelController::class, 'gradeProjectForm'])->name('projects.grade.form');
+        Route::post('/projects/{projectId}/grade',      [GuruPanelController::class, 'gradeProject'])->name('projects.grade');
+
+        Route::get('/subjects', [GuruPanelController::class, 'subjects'])->name('subjects.index');
+    });
+});
 
 Route::get('/', function () {
     return view('welcome');
