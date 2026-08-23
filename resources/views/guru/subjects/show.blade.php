@@ -14,8 +14,8 @@
             @csrf
             <button type="submit" class="btn btn-sm">Buat Ulang Kode Kelas</button>
         </form>
-        <a href="{{ route('guru.subjects.content.topics', $subject->id) }}" class="btn btn-sm btn-primary">Kelola Topik & Materi</a>
-        <a href="{{ route('guru.subjects.lesson-plans.index', $subject->id) }}" class="btn btn-sm btn-primary">Kelola RPP</a>
+        <a href="{{ route('guru.content.topics', $subject->id) }}" class="btn btn-sm btn-primary">Kelola Topik & Materi</a>
+<a href="{{ route('guru.lesson-plans.index', $subject->id) }}" class="btn btn-sm btn-primary">Kelola RPP</a>
     </div>
 
     <div class="panel" style="margin-bottom:20px;">

@@ -3,8 +3,7 @@
 @section('content')
     <div style="margin-bottom:16px;">
         <a href="{{ route('guru.subjects.show', $subject->id) }}" class="btn btn-sm">&larr; Kembali ke Mata Pelajaran</a>
-        <a href="{{ route('guru.subjects.content.topics.create', $subject->id) }}" class="btn btn-primary btn-sm">+ Buat Topik</a>
-    </div>
+        <a href="{{ route('guru.content.topics.create', $subject->id) }}" class="btn btn-primary btn-sm">+ Buat Topik</a>
 
     <div class="panel">
         <table>

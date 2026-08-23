@@ -2,7 +2,7 @@
 @section('title', 'Buat Topik')
 @section('content')
     <div class="panel" style="padding:20px; max-width:560px;">
-        <form method="POST" action="{{ route('guru.subjects.content.topics.store', $subject->id) }}">
+        <form method="POST" action="{{ route('guru.content.topics.store', $subject->id) }}">
             @csrf
             <div class="form-group">
                 <label>Judul Topik</label>

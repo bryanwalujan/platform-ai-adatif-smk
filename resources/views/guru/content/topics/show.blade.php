@@ -7,7 +7,7 @@
 ])
 @section('content')
     <div style="margin-bottom:16px;">
-        <a href="{{ route('guru.subjects.content.topics', $topic->subject_id) }}" class="btn btn-sm">&larr; Kembali ke Topik</a>
+        <a href="{{ route('guru.content.topics', $topic->subject_id) }}" class="btn btn-sm">&larr; Kembali ke Topik</a>
         <a href="{{ route('guru.content.topics.edit', $topic->id) }}" class="btn btn-sm">Edit Topik</a>
         <form method="POST" action="{{ route('guru.content.topics.destroy', $topic->id) }}" style="display:inline-block"
               onsubmit="return confirm('Hapus topik ini beserta seluruh materi & kuis di dalamnya?')">
