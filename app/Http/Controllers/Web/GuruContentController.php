@@ -41,75 +41,74 @@ class GuruContentController extends Controller
     }
 
     public function storeTopic(Request $request, $subjectId)
-    {
-        $this->access->assertTeaches($request->user(), $subjectId);
+{
+    $this->access->assertTeaches($request->user(), $subjectId);
 
-        $validated = $request->validate([
-            'title'       => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'order'       => 'nullable|integer',
-        ]);
+    $validated = $request->validate([
+        'title'       => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'order'       => 'nullable|integer',
+    ]);
 
-        $lastOrder = Topic::where('subject_id', $subjectId)->max('order') ?? 0;
+    $lastOrder = Topic::where('subject_id', $subjectId)->max('order') ?? 0;
 
-        Topic::create([
-            'subject_id'  => $subjectId,
-            'title'       => $validated['title'],
-            'description' => $validated['description'] ?? null,
-            'order'       => $validated['order'] ?? $lastOrder + 1,
-        ]);
+    Topic::create([
+        'subject_id'  => $subjectId,
+        'title'       => $validated['title'],
+        'description' => $validated['description'] ?? null,
+        'order'       => $validated['order'] ?? $lastOrder + 1,
+    ]);
 
-        return redirect()->route('guru.subjects.content.topics', $subjectId)->with('success', 'Topik berhasil dibuat.');
-    }
+    return redirect()->route('guru.content.topics', $subjectId)->with('success', 'Topik berhasil dibuat.');
+}
 
-    public function showTopic(Request $request, $topicId)
-    {
-        $topic = Topic::with('subject:id,name')
-            ->withCount(['materials', 'quizzes'])
-            ->findOrFail($topicId);
-        $this->access->assertTeaches($request->user(), $topic->subject_id);
+public function showTopic(Request $request, $topicId)
+{
+    $topic = Topic::with('subject:id,name')
+        ->withCount(['materials', 'quizzes'])
+        ->findOrFail($topicId);
+    $this->access->assertTeaches($request->user(), $topic->subject_id);
 
-        $materials = Material::where('topic_id', $topicId)->orderBy('order')->get();
-        $quizzes   = Quiz::where('topic_id', $topicId)->withCount('questions')->get();
+    $materials = Material::where('topic_id', $topicId)->orderBy('order')->get();
+    $quizzes   = Quiz::where('topic_id', $topicId)->withCount('questions')->get();
 
-        return view('guru.content.topics.show', compact('topic', 'materials', 'quizzes'));
-    }
+    return view('guru.content.topics.show', compact('topic', 'materials', 'quizzes'));
+}
 
-    public function editTopic(Request $request, $id)
-    {
-        $topic = Topic::with('subject:id,name')->findOrFail($id);
-        $this->access->assertTeaches($request->user(), $topic->subject_id);
+public function editTopic(Request $request, $id)
+{
+    $topic = Topic::with('subject:id,name')->findOrFail($id);
+    $this->access->assertTeaches($request->user(), $topic->subject_id);
 
-        return view('guru.content.topics.edit', ['topic' => $topic]);
-    }
+    return view('guru.content.topics.edit', ['topic' => $topic]);
+}
 
-    public function updateTopic(Request $request, $id)
-    {
-        $topic = Topic::findOrFail($id);
-        $this->access->assertTeaches($request->user(), $topic->subject_id);
+public function updateTopic(Request $request, $id)
+{
+    $topic = Topic::findOrFail($id);
+    $this->access->assertTeaches($request->user(), $topic->subject_id);
 
-        $validated = $request->validate([
-            'title'       => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'order'       => 'nullable|integer',
-        ]);
+    $validated = $request->validate([
+        'title'       => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'order'       => 'nullable|integer',
+    ]);
 
-        $topic->update($validated);
+    $topic->update($validated);
 
-        return redirect()->route('guru.subjects.content.topics', $topic->subject_id)->with('success', 'Topik berhasil diperbarui.');
-    }
+    return redirect()->route('guru.content.topics', $topic->subject_id)->with('success', 'Topik berhasil diperbarui.');
+}
 
-    public function destroyTopic(Request $request, $id)
-    {
-        $topic = Topic::findOrFail($id);
-        $this->access->assertTeaches($request->user(), $topic->subject_id);
+public function destroyTopic(Request $request, $id)
+{
+    $topic = Topic::findOrFail($id);
+    $this->access->assertTeaches($request->user(), $topic->subject_id);
 
-        $subjectId = $topic->subject_id;
-        $topic->delete();
+    $subjectId = $topic->subject_id;
+    $topic->delete();
 
-        return redirect()->route('guru.subjects.content.topics', $subjectId)->with('success', 'Topik berhasil dihapus.');
-    }
-
+    return redirect()->route('guru.content.topics', $subjectId)->with('success', 'Topik berhasil dihapus.');
+}
     // ==================== MATERI ====================
 
     public function createMaterial(Request $request, $topicId)
