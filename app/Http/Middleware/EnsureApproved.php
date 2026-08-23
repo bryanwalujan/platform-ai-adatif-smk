@@ -29,7 +29,15 @@ class EnsureApproved
                 ? 'Akun Anda masih menunggu persetujuan admin.'
                 : 'Akun Anda tidak aktif. Silakan hubungi admin.';
 
-            return response()->json(['message' => $message], 403);
+            // Panel web guru (routes/web.php, guard session) mengharapkan
+            // halaman/redirect, bukan JSON — beda dari klien API (Flutter,
+            // selalu kirim Accept: application/json). Pola sama seperti
+            // CheckRole, supaya konsisten di seluruh middleware otorisasi.
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 403);
+            }
+
+            abort(403, $message);
         }
 
         return $next($request);

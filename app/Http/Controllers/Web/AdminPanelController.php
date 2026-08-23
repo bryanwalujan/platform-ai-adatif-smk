@@ -124,4 +124,23 @@ class AdminPanelController extends Controller
         return redirect()->route('admin.subjects.index')
             ->with('success', "Mata pelajaran \"{$subject->name}\" berhasil dinonaktifkan.");
     }
+
+    public function updateUserStatus(Request $request, $id)
+{
+    $validated = $request->validate([
+        'status' => 'required|in:active,pending,rejected',
+    ]);
+
+    $user = User::findOrFail($id);
+
+    // Admin tidak boleh menonaktifkan akunnya sendiri lewat panel ini —
+    // supaya tidak ada admin yang kekunci keluar dari sistemnya sendiri.
+    if ($user->id === $request->user()->id) {
+        return back()->with('error', 'Anda tidak dapat mengubah status akun Anda sendiri.');
+    }
+
+    $this->admin->updateUserStatus($user, $validated['status']);
+
+    return back()->with('success', "Status akun \"{$user->name}\" berhasil diperbarui.");
+}
 }

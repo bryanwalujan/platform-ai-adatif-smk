@@ -36,6 +36,10 @@
         .btn-primary:hover { background: var(--primary-dark); }
         .btn-sm { padding: 4px 10px; font-size: 12px; }
         .content { padding: 24px 28px; }
+        .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+        .breadcrumb a { color: var(--text-muted); }
+        .breadcrumb a:hover { color: var(--primary); }
+        .breadcrumb .sep { margin: 0 6px; }
         .flash { padding: 12px 16px; border-radius: 8px; margin-bottom: 18px; font-size: 13px; }
         .flash-success { background: var(--success-bg); color: var(--success-text); border: 1px solid #a7f3d0; }
         .flash-error { background: var(--error-bg); color: var(--error-text); border: 1px solid #fecaca; }
@@ -80,7 +84,22 @@
 
         <div class="main">
             <div class="topbar">
-                <h1>@yield('title', 'Dashboard')</h1>
+                <div>
+                    @isset($breadcrumbs)
+                        <div class="breadcrumb">
+                            <a href="{{ route('guru.dashboard') }}">Dashboard</a>
+                            @foreach($breadcrumbs as $label => $url)
+                                <span class="sep">/</span>
+                                @if($url)
+                                    <a href="{{ $url }}">{{ $label }}</a>
+                                @else
+                                    <span>{{ $label }}</span>
+                                @endif
+                            @endforeach
+                        </div>
+                    @endisset
+                    <h1>@yield('title', 'Dashboard')</h1>
+                </div>
 
                 <div style="display:flex; align-items:center; gap:14px;">
                     @isset($subjectOptions)

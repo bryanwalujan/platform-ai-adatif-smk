@@ -3,6 +3,9 @@
 use App\Http\Controllers\Web\AdminPanelController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\GuruPanelController;
+use App\Http\Controllers\Web\GuruSubjectController;
+use App\Http\Controllers\Web\GuruLessonPlanController;
+use App\Http\Controllers\Web\GuruContentController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -43,6 +46,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin'])->grou
     Route::post('/subjects/{id}/teachers',                [AdminPanelController::class, 'addTeacher'])->name('subjects.teachers.add');
     Route::delete('/subjects/{id}/teachers/{userId}',     [AdminPanelController::class, 'removeTeacher'])->name('subjects.teachers.remove');
     Route::delete('/subjects/{id}',                       [AdminPanelController::class, 'deactivateSubject'])->name('subjects.deactivate');
+
+    Route::put('/users/{id}/status', [AdminPanelController::class, 'updateUserStatus'])->name('users.status.update');
 });
 
 /*
@@ -65,5 +70,59 @@ Route::prefix('guru')->name('guru.')->middleware(['auth', 'role:guru', 'approved
     Route::get('/projects/{projectId}/grade',       [GuruPanelController::class, 'gradeProjectForm'])->name('projects.grade.form');
     Route::post('/projects/{projectId}/grade',      [GuruPanelController::class, 'gradeProject'])->name('projects.grade');
 
-    Route::get('/subjects', [GuruPanelController::class, 'subjects'])->name('subjects.index');
+    Route::get('/students/search', [GuruSubjectController::class, 'searchStudents'])->name('students.search');
+
+Route::prefix('subjects')->name('subjects.')->group(function () {
+    Route::get('/',                          [GuruSubjectController::class, 'index'])->name('index');
+    Route::get('/create',                    [GuruSubjectController::class, 'create'])->name('create');
+    Route::post('/',                         [GuruSubjectController::class, 'store'])->name('store');
+    Route::get('/{id}',                      [GuruSubjectController::class, 'show'])->name('show');
+    Route::get('/{id}/edit',                 [GuruSubjectController::class, 'edit'])->name('edit');
+    Route::put('/{id}',                      [GuruSubjectController::class, 'update'])->name('update');
+    Route::post('/{id}/join-code/regenerate',[GuruSubjectController::class, 'regenerateJoinCode'])->name('join-code.regenerate');
+    Route::post('/{id}/students',            [GuruSubjectController::class, 'addStudent'])->name('students.add');
+    Route::delete('/{id}/students/{studentId}', [GuruSubjectController::class, 'removeStudent'])->name('students.remove');
+
+    Route::get('/{subjectId}/lesson-plans',        [GuruLessonPlanController::class, 'index'])->name('lesson-plans.index');
+    Route::get('/{subjectId}/lesson-plans/create', [GuruLessonPlanController::class, 'create'])->name('lesson-plans.create');
+    Route::post('/{subjectId}/lesson-plans',       [GuruLessonPlanController::class, 'store'])->name('lesson-plans.store');
+
+    Route::get('/{subjectId}/content/topics',        [GuruContentController::class, 'topics'])->name('content.topics');
+    Route::get('/{subjectId}/content/topics/create', [GuruContentController::class, 'createTopic'])->name('content.topics.create');
+    Route::post('/{subjectId}/content/topics',       [GuruContentController::class, 'storeTopic'])->name('content.topics.store');
+});
+
+Route::prefix('lesson-plans')->name('lesson-plans.')->group(function () {
+    Route::get('/{id}',                    [GuruLessonPlanController::class, 'show'])->name('show');
+    Route::get('/{id}/edit',               [GuruLessonPlanController::class, 'edit'])->name('edit');
+    Route::put('/{id}',                    [GuruLessonPlanController::class, 'update'])->name('update');
+    Route::delete('/{id}',                 [GuruLessonPlanController::class, 'destroy'])->name('destroy');
+    Route::post('/{id}/toggle-complete',   [GuruLessonPlanController::class, 'toggleComplete'])->name('toggle-complete');
+});
+
+Route::prefix('content')->name('content.')->group(function () {
+    Route::get('/topics/{id}',        [GuruContentController::class, 'showTopic'])->name('topics.show');
+    Route::get('/topics/{id}/edit',   [GuruContentController::class, 'editTopic'])->name('topics.edit');
+    Route::put('/topics/{id}',        [GuruContentController::class, 'updateTopic'])->name('topics.update');
+    Route::delete('/topics/{id}',     [GuruContentController::class, 'destroyTopic'])->name('topics.destroy');
+
+    Route::get('/topics/{topicId}/materials/create', [GuruContentController::class, 'createMaterial'])->name('materials.create');
+    Route::post('/materials',                        [GuruContentController::class, 'storeMaterial'])->name('materials.store');
+    Route::get('/materials/{id}/edit',                [GuruContentController::class, 'editMaterial'])->name('materials.edit');
+    Route::put('/materials/{id}',                     [GuruContentController::class, 'updateMaterial'])->name('materials.update');
+    Route::delete('/materials/{id}',                  [GuruContentController::class, 'destroyMaterial'])->name('materials.destroy');
+
+    Route::get('/topics/{topicId}/quizzes/create', [GuruContentController::class, 'createQuiz'])->name('quizzes.create');
+    Route::post('/quizzes',                        [GuruContentController::class, 'storeQuiz'])->name('quizzes.store');
+    Route::get('/quizzes/{id}',                    [GuruContentController::class, 'showQuiz'])->name('quizzes.show');
+    Route::get('/quizzes/{id}/edit',               [GuruContentController::class, 'editQuiz'])->name('quizzes.edit');
+    Route::put('/quizzes/{id}',                    [GuruContentController::class, 'updateQuiz'])->name('quizzes.update');
+    Route::delete('/quizzes/{id}',                 [GuruContentController::class, 'destroyQuiz'])->name('quizzes.destroy');
+
+    Route::get('/quizzes/{quizId}/questions/create', [GuruContentController::class, 'createQuestion'])->name('questions.create');
+    Route::post('/quizzes/{quizId}/questions',       [GuruContentController::class, 'storeQuestion'])->name('questions.store');
+    Route::get('/questions/{id}/edit',                [GuruContentController::class, 'editQuestion'])->name('questions.edit');
+    Route::put('/questions/{id}',                     [GuruContentController::class, 'updateQuestion'])->name('questions.update');
+    Route::delete('/questions/{id}',                  [GuruContentController::class, 'destroyQuestion'])->name('questions.destroy');
+});
 });

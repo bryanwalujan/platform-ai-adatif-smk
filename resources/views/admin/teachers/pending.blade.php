@@ -1,44 +1,34 @@
 @extends('admin.layout')
-
 @section('title', 'Approval Guru')
-
 @section('content')
     <div class="panel">
-        <div class="panel-header">Akun Guru Menunggu Persetujuan ({{ $teachers->count() }})</div>
-
-        @if ($teachers->isEmpty())
-            <div class="empty">Tidak ada akun guru yang menunggu persetujuan saat ini.</div>
-        @else
-            <table>
-                <thead>
+        <div class="panel-header">Akun Guru Menunggu Persetujuan</div>
+        <table>
+            <thead>
+                <tr><th>Nama</th><th>Email</th><th>Daftar Sejak</th><th></th></tr>
+            </thead>
+            <tbody>
+                @forelse($teachers as $t)
                     <tr>
-                        <th>Nama</th>
-                        <th>Email</th>
-                        <th>Daftar Pada</th>
-                        <th></th>
+                        <td>{{ $t->name }}</td>
+                        <td>{{ $t->email }}</td>
+                        <td>{{ $t->created_at->diffForHumans() }}</td>
+                        <td class="actions">
+                            <form method="POST" action="{{ route('admin.teachers.approve', $t->id) }}" style="display:inline-block">
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-primary">Setujui</button>
+                            </form>
+                            <form method="POST" action="{{ route('admin.teachers.reject', $t->id) }}" style="display:inline-block"
+                                  onsubmit="return confirm('Tolak akun guru {{ $t->name }}?')">
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-danger">Tolak</button>
+                            </form>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    @foreach ($teachers as $teacher)
-                        <tr>
-                            <td>{{ $teacher->name }}</td>
-                            <td>{{ $teacher->email }}</td>
-                            <td>{{ $teacher->created_at?->format('d M Y, H:i') ?? '-' }}</td>
-                            <td class="actions">
-                                <form method="POST" action="{{ route('admin.teachers.approve', $teacher->id) }}">
-                                    @csrf
-                                    <button type="submit" class="btn btn-primary btn-sm">Approve</button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.teachers.reject', $teacher->id) }}"
-                                      onsubmit="return confirm('Tolak pendaftaran {{ $teacher->name }}?')">
-                                    @csrf
-                                    <button type="submit" class="btn btn-danger btn-sm">Tolak</button>
-                                </form>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        @endif
+                @empty
+                    <tr><td colspan="4" class="empty">Tidak ada akun guru yang menunggu persetujuan 🎉</td></tr>
+                @endforelse
+            </tbody>
+        </table>
     </div>
 @endsection
