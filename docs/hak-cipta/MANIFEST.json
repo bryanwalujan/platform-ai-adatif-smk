@@ -1,0 +1,124 @@
+{
+  "application": "Pijar PBL (nama usulan)",
+  "date": "2026-09-16",
+  "backend_commit": "5e3356b",
+  "flutter_commit": "c8ec620",
+  "screenshots": "Template belum dilengkapi",
+  "files": [
+    {
+      "path": "01-Panduan-Penggunaan.docx",
+      "bytes": 43006,
+      "sha256": "ffab7de1eb5b46d9fea42c64a7dd66d8a3db0372b9d4cb82021e096caf125cf9"
+    },
+    {
+      "path": "01-Panduan-Penggunaan.pdf",
+      "bytes": 95368,
+      "sha256": "2731e41976219d71d48c564a267607491ae3ac8d04bcea73400eef4ae260d3fd"
+    },
+    {
+      "path": "02-Deskripsi-dan-Artefak.docx",
+      "bytes": 285065,
+      "sha256": "95abff2afa0acdd20d39fe20e7ca70958e4fbdcdc969b7dcc637d3f66ba2ff18"
+    },
+    {
+      "path": "02-Deskripsi-dan-Artefak.pdf",
+      "bytes": 286256,
+      "sha256": "5a5d7f87a59a2c4ec92e80c719a17182f84d4f587e3c1d002ef81ff2ec11ce55"
+    },
+    {
+      "path": "03-Template-Tangkapan-Layar.docx",
+      "bytes": 38895,
+      "sha256": "a2b59edc3a7bd5151604d6a0c1714b772680c1735ed765da4946fa1355cb780e"
+    },
+    {
+      "path": "03-Template-Tangkapan-Layar.pdf",
+      "bytes": 62253,
+      "sha256": "19586b4933504d03656343a892e48b7d6e315ab521b852de9a1849da3f4fb490"
+    },
+    {
+      "path": "04-Cuplikan-Kode.docx",
+      "bytes": 43345,
+      "sha256": "083b7210f8f3b83325d34413b2ef1604f295b6770627e7f0423ab1c074d7bb0b"
+    },
+    {
+      "path": "04-Cuplikan-Kode.pdf",
+      "bytes": 78232,
+      "sha256": "67986bdbe50b451a2e9db80473f61b2d2f914e3675720c874be1ba12a6e33715"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2586,
+      "sha256": "6d0614735a8202b2e753a812bb2760ac132fd32f20ba66188899cc25810da695"
+    },
+    {
+      "path": "diagram/01-arsitektur.dot",
+      "bytes": 856,
+      "sha256": "da9df6a834f777167d0a540ecb051508ee27261f5e7d262cb3ec97321d0ec78a"
+    },
+    {
+      "path": "diagram/01-arsitektur.png",
+      "bytes": 47820,
+      "sha256": "e4f626ab6e1ac41a8f2de7f5bec2a9ae902b68e6ac3e39ce778e778ddf70f7c8"
+    },
+    {
+      "path": "diagram/01-arsitektur.svg",
+      "bytes": 7720,
+      "sha256": "ca59a79a59a1eb0f8d78243750abfe26286c1444bd1643e99ac055f12b5a7f5f"
+    },
+    {
+      "path": "diagram/02-alur-pbl.dot",
+      "bytes": 1006,
+      "sha256": "611986937edc4470ac8e958e83c990ecf2f1f19978d393445c2489104a038fb7"
+    },
+    {
+      "path": "diagram/02-alur-pbl.png",
+      "bytes": 75874,
+      "sha256": "a4602a8f3968e4ec278c261963aa3d06837ae00c14bbd02f39eee797a1d142eb"
+    },
+    {
+      "path": "diagram/02-alur-pbl.svg",
+      "bytes": 9080,
+      "sha256": "1e99556adb25834176b9f1f0ecbae7f08033c141a5a8779d335d7c2c12eb4acf"
+    },
+    {
+      "path": "diagram/03-relasi-data.dot",
+      "bytes": 879,
+      "sha256": "e13bc0f00511ad71bcc96a2415af358f173290c76c8ea090e5ba772603903ac6"
+    },
+    {
+      "path": "diagram/03-relasi-data.png",
+      "bytes": 76720,
+      "sha256": "f47b3ee793f2e3c2d62e1c47e3d791d6ada3579b9ea526c5e443466c85bbdca7"
+    },
+    {
+      "path": "diagram/03-relasi-data.svg",
+      "bytes": 13248,
+      "sha256": "95226af8cc9074418d05faa37b2978942ad042d4110975afc0cd09f6ea462ce7"
+    },
+    {
+      "path": "diagram/04-akses-sekolah.dot",
+      "bytes": 775,
+      "sha256": "7f2fcb1ee05dc03135d210019f05bdad6b4d974e488fc023feec58e53bd3290c"
+    },
+    {
+      "path": "diagram/04-akses-sekolah.png",
+      "bytes": 50940,
+      "sha256": "8bd397357988d1b8ca15e7baa005b5d1d50e1e9735d5cab93999b805b8ffe4a3"
+    },
+    {
+      "path": "diagram/04-akses-sekolah.svg",
+      "bytes": 7973,
+      "sha256": "3a903f25b1223e6853c58e1274c80a64f6aca715adbaa9f925d8e5c8340e0c36"
+    },
+    {
+      "path": "sumber/buat_dokumen.py",
+      "bytes": 25944,
+      "sha256": "433778b42e8606f27f3c61cb6be1b8f6a47c0459c48a5e50c6eb39bbe1fc6623"
+    },
+    {
+      "path": "sumber/indeks-cuplikan.json",
+      "bytes": 743,
+      "sha256": "f98e9e9406286e31553a4990a774add1c20ba0333313aa113a224c0508e5f269"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "file": "app/Models/Concerns/BelongsToSchool.php",
+    "start": 1,
+    "end": 65,
+    "sha256_full_source": "474ae91270e82960866550ad68bb6f04298b5ea6994ac78856b70f2b8700d412"
+  },
+  {
+    "file": "app/Services/MaterialMediaService.php",
+    "start": 1,
+    "end": 102,
+    "sha256_full_source": "dac4a118fe95bd7612653db90a5609e4a76fb681ea9404ff102d9cee026ebc08"
+  },
+  {
+    "file": "app/Models/PblProject.php",
+    "start": 73,
+    "end": 142,
+    "sha256_full_source": "ad81e2c3aa9a1a87d657e4534b8088e581ca461009996dbc1894aee6149bd54e"
+  },
+  {
+    "file": "app/Services/AdaptiveEngineService.php",
+    "start": 237,
+    "end": 266,
+    "sha256_full_source": "ca4ddf4695902818acaebf92e81fae6717e8c748bf8e11399464454af17686dd"
+  }
+]

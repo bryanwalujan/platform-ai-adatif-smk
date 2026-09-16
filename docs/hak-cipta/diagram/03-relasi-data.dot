@@ -1,0 +1,20 @@
+digraph G { graph [bgcolor="white",pad="0.25",ranksep="0.5"]; node [shape=box,style="rounded,filled",fillcolor="#EAF2FA",color="#24618A",fontname="DejaVu Sans",fontsize=12,margin="0.15"]; edge [color="#53758A",fontname="DejaVu Sans",fontsize=10]; rankdir=LR;
+s [label="schools"];
+u [label="users
+Peran dan school_id"];
+m [label="subjects"];
+t [label="topics"];
+mat [label="materials
+media_files (JSON)"];
+q [label="quizzes"];
+qq [label="quiz_questions"];
+p [label="pbl_projects
+Lampiran, rubrik, nilai"];
+st [label="subject_student
+Keanggotaan siswa"];
+gt [label="subject_teacher
+Pengampu guru"];
+master [label="student_topic_mastery"];
+s -> u [label="1:N"]; s -> m [label="1:N"]; m -> t [label="1:N"]; t -> mat [label="1:N"]; t -> q [label="1:N"]; q -> qq [label="1:N"];
+u -> st; m -> st; u -> gt; m -> gt; u -> p; m -> p; t -> p [label="opsional"]; u -> master; t -> master;
+ }

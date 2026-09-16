@@ -1,0 +1,16 @@
+digraph G { graph [bgcolor="white",pad="0.25",ranksep="0.5"]; node [shape=box,style="rounded,filled",fillcolor="#EAF2FA",color="#24618A",fontname="DejaVu Sans",fontsize=12,margin="0.15"]; edge [color="#53758A",fontname="DejaVu Sans",fontsize=10]; rankdir=TB;
+user [label="Siswa • Guru • Admin sekolah"];
+flutter [label="Antarmuka Flutter
+Materi • Kuis • Proyek • Kemajuan"];
+api [label="Laravel REST API
+Autentikasi Sanctum"];
+school [label="Konteks sekolah dari akun
+Validasi peran dan akses mata pelajaran"];
+services [label="Layanan pembelajaran
+Rekomendasi adaptif • BKT • Penilaian PBL"];
+db [label="Basis data relasional
+Akun, mapel, topik, nilai, riwayat"];
+files [label="Penyimpanan privat
+Lampiran materi dan proyek"];
+user -> flutter -> api -> school -> services; services -> db; school -> files [label="Akses lampiran berizin"];
+ }
