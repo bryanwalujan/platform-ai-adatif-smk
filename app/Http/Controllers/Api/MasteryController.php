@@ -16,8 +16,7 @@ class MasteryController extends Controller
         private AdaptiveEngineService $engine,
         private SubjectAccessService $access,
         private BayesianKnowledgeTracingService $bkt,
-    ) {
-    }
+    ) {}
 
     /**
      * GET /mastery
@@ -55,12 +54,12 @@ class MasteryController extends Controller
                 $bktTrace = $sequence ? $this->bkt->predictMasterySequence($sequence, $bktParams) : [];
 
                 return [
-                    'topic_id'      => $m->topic_id,
-                    'topic_title'   => $m->topic?->title ?? 'Topik tidak ditemukan',
+                    'topic_id' => $m->topic_id,
+                    'topic_title' => $m->topic?->title ?? 'Topik tidak ditemukan',
                     'mastery_level' => $this->engine->effectiveMastery($m),
                     'bkt_mastery_probability' => $bktTrace ? round(end($bktTrace) * 100, 1) : null,
-                    'bkt_observations_count'  => count($sequence),
-                    'attempts'      => $m->attempts,
+                    'bkt_observations_count' => count($sequence),
+                    'attempts' => $m->attempts,
                     'last_accessed' => $m->last_accessed?->toIso8601String(),
                 ];
             })
@@ -76,8 +75,8 @@ class MasteryController extends Controller
     public function update(Request $request)
     {
         $validated = $request->validate([
-            'topic_id'           => 'required|exists:topics,id',
-            'quiz_score'         => 'required|numeric|min:0|max:100',
+            'topic_id' => 'required|school_exists:topics,id',
+            'quiz_score' => 'required|numeric|min:0|max:100',
             'time_spent_minutes' => 'nullable|integer|min:0',
         ]);
 
@@ -85,16 +84,16 @@ class MasteryController extends Controller
         $this->access->assertEnrolled($request->user(), $topic->subject_id);
 
         $mastery = $this->engine->updateMastery(
-            userId:            $request->user()->id,
-            topicId:           $validated['topic_id'],
-            quizScore:         $validated['quiz_score'],
-            timeSpentMinutes:  $validated['time_spent_minutes'] ?? 0,
+            userId: $request->user()->id,
+            topicId: $validated['topic_id'],
+            quizScore: $validated['quiz_score'],
+            timeSpentMinutes: $validated['time_spent_minutes'] ?? 0,
         );
 
         return response()->json([
             'mastery_level' => $mastery->mastery_level,
-            'attempts'      => $mastery->attempts,
-            'message'       => 'Mastery berhasil diperbarui',
+            'attempts' => $mastery->attempts,
+            'message' => 'Mastery berhasil diperbarui',
         ]);
     }
 

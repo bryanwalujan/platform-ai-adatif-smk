@@ -42,7 +42,7 @@
 
         @if($plan->file_path)
             <h3>Lampiran</h3>
-            <p><a href="{{ url('/api/files/' . $plan->file_path) }}" target="_blank">📎 {{ $plan->file_name }}</a></p>
+            <p><a href="{{ route('school.files', ['path' => $plan->file_path]) }}" target="_blank">📎 {{ $plan->file_name }}</a></p>
         @endif
     </div>
 @endsection

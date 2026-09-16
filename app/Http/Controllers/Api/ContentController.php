@@ -12,9 +12,7 @@ use Illuminate\Http\Request;
 
 class ContentController extends Controller
 {
-    public function __construct(private SubjectAccessService $access)
-    {
-    }
+    public function __construct(private SubjectAccessService $access) {}
 
     // ==================== TOPIK ====================
 
@@ -34,18 +32,18 @@ class ContentController extends Controller
         $subjectId = $this->access->resolveSubjectId($request, $request->user(), $subjectId);
 
         $request->validate([
-            'title'       => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'order'       => 'nullable|integer',
+            'order' => 'nullable|integer',
         ]);
 
         $lastOrder = Topic::where('subject_id', $subjectId)->max('order') ?? 0;
 
         $topic = Topic::create([
-            'subject_id'  => $subjectId,
-            'title'       => $request->title,
+            'subject_id' => $subjectId,
+            'title' => $request->title,
             'description' => $request->description,
-            'order'       => $request->order ?? $lastOrder + 1,
+            'order' => $request->order ?? $lastOrder + 1,
         ]);
 
         return response()->json(['message' => 'Topik berhasil dibuat', 'topic' => $topic], 201);
@@ -63,9 +61,9 @@ class ContentController extends Controller
         $this->access->assertTeaches($request->user(), $topic->subject_id);
 
         $validated = $request->validate([
-            'title'       => 'sometimes|string|max:255',
+            'title' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
-            'order'       => 'nullable|integer',
+            'order' => 'nullable|integer',
         ]);
 
         $topic->update($validated);
@@ -93,12 +91,12 @@ class ContentController extends Controller
     public function storeMaterial(Request $request)
     {
         $request->validate([
-            'topic_id'         => 'required|exists:topics,id',
-            'title'            => 'required|string',
-            'content'          => 'required|string',
-            'video_url'        => 'nullable|string',
+            'topic_id' => 'required|school_exists:topics,id',
+            'title' => 'required|string',
+            'content' => 'required|string',
+            'video_url' => 'nullable|string',
             'duration_minutes' => 'nullable|integer',
-            'file'             => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:15360',
+            'file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:15360',
         ]);
 
         $topic = Topic::findOrFail($request->topic_id);
@@ -118,7 +116,7 @@ class ContentController extends Controller
         $material = Material::create($data);
 
         return response()->json([
-            'message'  => 'Materi berhasil dibuat',
+            'message' => 'Materi berhasil dibuat',
             'material' => $material,
         ], 201);
     }
@@ -133,9 +131,9 @@ class ContentController extends Controller
         $this->access->assertTeaches($request->user(), $material->topic->subject_id);
 
         $validated = $request->validate([
-            'title'            => 'sometimes|string',
-            'content'          => 'sometimes|string',
-            'video_url'        => 'nullable|string',
+            'title' => 'sometimes|string',
+            'content' => 'sometimes|string',
+            'video_url' => 'nullable|string',
             'duration_minutes' => 'nullable|integer',
         ]);
 
@@ -163,10 +161,10 @@ class ContentController extends Controller
     public function storeQuiz(Request $request)
     {
         $validated = $request->validate([
-            'topic_id'           => 'required|exists:topics,id',
-            'title'              => 'required|string|max:255',
-            'type'               => 'nullable|in:regular,pre_test,post_test',
-            'passing_score'      => 'nullable|integer|min:0|max:100',
+            'topic_id' => 'required|school_exists:topics,id',
+            'title' => 'required|string|max:255',
+            'type' => 'nullable|in:regular,pre_test,post_test',
+            'passing_score' => 'nullable|integer|min:0|max:100',
             'time_limit_minutes' => 'nullable|integer|min:1',
         ]);
 
@@ -174,10 +172,10 @@ class ContentController extends Controller
         $this->access->assertTeaches($request->user(), $topic->subject_id);
 
         $quiz = Quiz::create([
-            'topic_id'           => $validated['topic_id'],
-            'title'              => $validated['title'],
-            'type'               => $validated['type'] ?? 'regular',
-            'passing_score'      => $validated['passing_score'] ?? 70,
+            'topic_id' => $validated['topic_id'],
+            'title' => $validated['title'],
+            'type' => $validated['type'] ?? 'regular',
+            'passing_score' => $validated['passing_score'] ?? 70,
             'time_limit_minutes' => $validated['time_limit_minutes'] ?? 30,
         ]);
 
@@ -194,9 +192,9 @@ class ContentController extends Controller
         $this->access->assertTeaches($request->user(), $quiz->topic->subject_id);
 
         $validated = $request->validate([
-            'title'              => 'sometimes|string|max:255',
-            'type'               => 'nullable|in:regular,pre_test,post_test',
-            'passing_score'      => 'nullable|integer|min:0|max:100',
+            'title' => 'sometimes|string|max:255',
+            'type' => 'nullable|in:regular,pre_test,post_test',
+            'passing_score' => 'nullable|integer|min:0|max:100',
             'time_limit_minutes' => 'nullable|integer|min:1',
         ]);
 
@@ -237,18 +235,18 @@ class ContentController extends Controller
         $this->access->assertTeaches($request->user(), $quiz->topic->subject_id);
 
         $request->validate([
-            'question'       => 'required|string',
-            'options'        => 'required|array|min:2',
+            'question' => 'required|string',
+            'options' => 'required|array|min:2',
             'correct_answer' => 'required|string',
-            'explanation'    => 'nullable|string',
+            'explanation' => 'nullable|string',
         ]);
 
         $question = QuizQuestion::create([
-            'quiz_id'        => $quizId,
-            'question'       => $request->question,
-            'options'        => $request->options,
+            'quiz_id' => $quizId,
+            'question' => $request->question,
+            'options' => $request->options,
             'correct_answer' => $request->correct_answer,
-            'explanation'    => $request->explanation,
+            'explanation' => $request->explanation,
         ]);
 
         return response()->json(['message' => 'Soal berhasil ditambahkan', 'question' => $question], 201);
@@ -264,10 +262,10 @@ class ContentController extends Controller
         $this->access->assertTeaches($request->user(), $question->quiz->topic->subject_id);
 
         $validated = $request->validate([
-            'question'       => 'sometimes|string',
-            'options'        => 'sometimes|array|min:2',
+            'question' => 'sometimes|string',
+            'options' => 'sometimes|array|min:2',
             'correct_answer' => 'sometimes|string',
-            'explanation'    => 'nullable|string',
+            'explanation' => 'nullable|string',
         ]);
 
         $question->update($validated);

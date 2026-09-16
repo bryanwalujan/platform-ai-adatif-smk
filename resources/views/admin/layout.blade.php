@@ -140,9 +140,10 @@
         <aside class="sidebar">
             <div class="brand">
                 Panel Admin
-                <small>SMK Multi-Mapel</small>
+                <small>{{ auth()->user()->school?->name ?? 'Belajar Adaptif' }}</small>
             </div>
             <nav>
+                <a href="{{ route('admin.school.edit') }}">Pengaturan Sekolah</a>
                 <a href="{{ route('admin.dashboard') }}" class="{{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">Dashboard</a>
                 <a href="{{ route('admin.teachers.pending') }}" class="{{ request()->routeIs('admin.teachers.*') ? 'active' : '' }}">
                     Approval Guru

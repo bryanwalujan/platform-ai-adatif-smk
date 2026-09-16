@@ -35,7 +35,7 @@
                 <input type="date" name="scheduled_date" value="{{ old('scheduled_date', $plan->scheduled_date) }}">
             </div>
             @if($plan->file_path)
-                <p style="font-size:13px;">File saat ini: <a href="{{ url('/api/files/' . $plan->file_path) }}" target="_blank">{{ $plan->file_name }}</a></p>
+                <p style="font-size:13px;">File saat ini: <a href="{{ route('school.files', ['path' => $plan->file_path]) }}" target="_blank">{{ $plan->file_name }}</a></p>
             @endif
             <div class="form-group">
                 <label>Ganti Lampiran File (opsional — kosongkan jika tidak diganti)</label>

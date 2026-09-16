@@ -1,4 +1,5 @@
 <?php
+
 // app/Http/Controllers/Api/DiscussionController.php
 
 namespace App\Http\Controllers\Api;
@@ -12,9 +13,7 @@ use Illuminate\Http\Request;
 
 class DiscussionController extends Controller
 {
-    public function __construct(private SubjectAccessService $access)
-    {
-    }
+    public function __construct(private SubjectAccessService $access) {}
 
     /**
      * GET /topics/{topicId}/discussions
@@ -30,20 +29,20 @@ class DiscussionController extends Controller
             ->orderByDesc('is_pinned')
             ->latest()
             ->get()
-            ->map(fn($d) => [
-                'id'           => $d->id,
-                'title'        => $d->title,
-                'body'         => $d->body,
-                'type'         => $d->type,
-                'is_pinned'    => $d->is_pinned,
-                'is_resolved'  => $d->is_resolved,
+            ->map(fn ($d) => [
+                'id' => $d->id,
+                'title' => $d->title,
+                'body' => $d->body,
+                'type' => $d->type,
+                'is_pinned' => $d->is_pinned,
+                'is_resolved' => $d->is_resolved,
                 'replies_count' => $d->replies_count,
-                'user'         => [
-                    'id'   => $d->user->id,
+                'user' => [
+                    'id' => $d->user->id,
                     'name' => $d->user->name,
                     'role' => $d->user->role,
                 ],
-                'created_at'   => $d->created_at->diffForHumans(),
+                'created_at' => $d->created_at->diffForHumans(),
             ]);
 
         return response()->json($discussions);
@@ -59,20 +58,20 @@ class DiscussionController extends Controller
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'body'  => 'required|string',
-            'type'  => 'nullable|in:question,discussion,sharing',
+            'body' => 'required|string',
+            'type' => 'nullable|in:question,discussion,sharing',
         ]);
 
         $discussion = Discussion::create([
-            'user_id'  => $request->user()->id,
+            'user_id' => $request->user()->id,
             'topic_id' => $topicId,
-            'title'    => $validated['title'],
-            'body'     => $validated['body'],
-            'type'     => $validated['type'] ?? 'discussion',
+            'title' => $validated['title'],
+            'body' => $validated['body'],
+            'type' => $validated['type'] ?? 'discussion',
         ]);
 
         return response()->json([
-            'message'    => 'Diskusi berhasil dibuat',
+            'message' => 'Diskusi berhasil dibuat',
             'discussion' => $discussion->load('user:id,name,role'),
         ], 201);
     }
@@ -92,28 +91,28 @@ class DiscussionController extends Controller
         $this->access->assertEnrolled($request->user(), $discussion->topic->subject_id);
 
         return response()->json([
-            'id'           => $discussion->id,
-            'title'        => $discussion->title,
-            'body'         => $discussion->body,
-            'type'         => $discussion->type,
-            'is_pinned'    => $discussion->is_pinned,
-            'is_resolved'  => $discussion->is_resolved,
-            'user'         => [
-                'id'   => $discussion->user->id,
+            'id' => $discussion->id,
+            'title' => $discussion->title,
+            'body' => $discussion->body,
+            'type' => $discussion->type,
+            'is_pinned' => $discussion->is_pinned,
+            'is_resolved' => $discussion->is_resolved,
+            'user' => [
+                'id' => $discussion->user->id,
                 'name' => $discussion->user->name,
                 'role' => $discussion->user->role,
             ],
-            'created_at'   => $discussion->created_at->diffForHumans(),
-            'replies'      => $discussion->replies->map(fn($r) => [
-                'id'             => $r->id,
-                'body'           => $r->body,
+            'created_at' => $discussion->created_at->diffForHumans(),
+            'replies' => $discussion->replies->map(fn ($r) => [
+                'id' => $r->id,
+                'body' => $r->body,
                 'is_best_answer' => $r->is_best_answer,
-                'user'           => [
-                    'id'   => $r->user->id,
+                'user' => [
+                    'id' => $r->user->id,
                     'name' => $r->user->name,
                     'role' => $r->user->role,
                 ],
-                'created_at'     => $r->created_at->diffForHumans(),
+                'created_at' => $r->created_at->diffForHumans(),
             ]),
         ]);
     }
@@ -130,8 +129,8 @@ class DiscussionController extends Controller
 
         $reply = DiscussionReply::create([
             'discussion_id' => $id,
-            'user_id'       => $request->user()->id,
-            'body'          => $request->body,
+            'user_id' => $request->user()->id,
+            'body' => $request->body,
         ]);
 
         // Increment replies_count
@@ -139,16 +138,16 @@ class DiscussionController extends Controller
 
         return response()->json([
             'message' => 'Balasan berhasil dikirim',
-            'reply'   => [
-                'id'             => $reply->id,
-                'body'           => $reply->body,
+            'reply' => [
+                'id' => $reply->id,
+                'body' => $reply->body,
                 'is_best_answer' => false,
-                'user'           => [
-                    'id'   => $request->user()->id,
+                'user' => [
+                    'id' => $request->user()->id,
                     'name' => $request->user()->name,
                     'role' => $request->user()->role,
                 ],
-                'created_at'     => $reply->created_at->diffForHumans(),
+                'created_at' => $reply->created_at->diffForHumans(),
             ],
         ], 201);
     }
@@ -168,7 +167,7 @@ class DiscussionController extends Controller
         $discussion = Discussion::with('topic:id,subject_id')->findOrFail($id);
         $user = $request->user();
 
-        $isOwner   = $discussion->user_id === $user->id;
+        $isOwner = $discussion->user_id === $user->id;
         $isTeacher = $this->access->teaches($user, $discussion->topic->subject_id);
 
         if (! $isOwner && ! $isTeacher) {
@@ -190,19 +189,20 @@ class DiscussionController extends Controller
         $discussion = Discussion::with('topic:id,subject_id')->findOrFail($id);
         $user = $request->user();
 
-        $isOwner   = $discussion->user_id === $user->id;
+        $isOwner = $discussion->user_id === $user->id;
         $isTeacher = $this->access->teaches($user, $discussion->topic->subject_id);
 
         if (! $isOwner && ! $isTeacher) {
             return response()->json(['message' => 'Tidak diizinkan'], 403);
         }
 
+        $reply = DiscussionReply::where('discussion_id', $discussion->id)->findOrFail($replyId);
+
         // Reset semua best answer di diskusi ini
         DiscussionReply::where('discussion_id', $id)
             ->update(['is_best_answer' => false]);
 
-        DiscussionReply::findOrFail($replyId)
-            ->update(['is_best_answer' => true]);
+        $reply->update(['is_best_answer' => true]);
 
         $discussion->update(['is_resolved' => true]);
 
@@ -219,10 +219,10 @@ class DiscussionController extends Controller
         $discussion = Discussion::with('topic:id,subject_id')->findOrFail($id);
         $this->access->assertTeaches($request->user(), $discussion->topic->subject_id);
 
-        $discussion->update(['is_pinned' => !$discussion->is_pinned]);
+        $discussion->update(['is_pinned' => ! $discussion->is_pinned]);
 
         return response()->json([
-            'message'   => $discussion->is_pinned ? 'Diskusi disematkan' : 'Sematan dilepas',
+            'message' => $discussion->is_pinned ? 'Diskusi disematkan' : 'Sematan dilepas',
             'is_pinned' => $discussion->is_pinned,
         ]);
     }

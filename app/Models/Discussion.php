@@ -1,12 +1,16 @@
 <?php
+
 // app/Models/Discussion.php
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Model;
 
 class Discussion extends Model
 {
+    use BelongsToSchool;
+
     protected $fillable = [
         'user_id', 'topic_id', 'title',
         'body', 'type', 'is_pinned',
@@ -14,11 +18,22 @@ class Discussion extends Model
     ];
 
     protected $casts = [
-        'is_pinned'    => 'boolean',
-        'is_resolved'  => 'boolean',
+        'is_pinned' => 'boolean',
+        'is_resolved' => 'boolean',
     ];
 
-    public function user()    { return $this->belongsTo(User::class); }
-    public function topic()   { return $this->belongsTo(Topic::class); }
-    public function replies() { return $this->hasMany(DiscussionReply::class); }
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function topic()
+    {
+        return $this->belongsTo(Topic::class);
+    }
+
+    public function replies()
+    {
+        return $this->hasMany(DiscussionReply::class);
+    }
 }

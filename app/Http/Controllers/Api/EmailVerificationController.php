@@ -21,7 +21,7 @@ class EmailVerificationController extends Controller
     {
         $validated = $request->validate([
             'email' => 'required|email',
-            'code'  => 'required|string',
+            'code' => 'required|string',
         ]);
 
         $user = User::where('email', $validated['email'])->first();
@@ -43,10 +43,12 @@ class EmailVerificationController extends Controller
         }
 
         $user->update([
-            'email_verified_at'                   => now(),
-            'email_verification_code'             => null,
-            'email_verification_code_expires_at'  => null,
+            'email_verified_at' => now(),
+            'email_verification_code' => null,
+            'email_verification_code_expires_at' => null,
         ]);
+
+        abort_unless($user->school?->is_active && $user->status !== 'rejected', 403, 'Sekolah atau akun tidak aktif. Hubungi admin sekolah.');
 
         // Token lama (kalau ada sisa dari percobaan sebelumnya) dibersihkan dulu
         $user->tokens()->delete();
@@ -54,8 +56,8 @@ class EmailVerificationController extends Controller
 
         return response()->json([
             'message' => 'Email berhasil diverifikasi',
-            'token'   => $token,
-            'user'    => $user->toAuthArray(),
+            'token' => $token,
+            'user' => $user->toAuthArray(),
         ]);
     }
 
@@ -99,7 +101,7 @@ class EmailVerificationController extends Controller
         $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
         $user->update([
-            'email_verification_code'            => $code,
+            'email_verification_code' => $code,
             'email_verification_code_expires_at' => now()->addMinutes(15),
         ]);
 

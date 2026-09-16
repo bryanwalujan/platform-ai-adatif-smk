@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Model;
 
 class LearningLog extends Model
 {
+    use BelongsToSchool;
+
     protected $fillable = [
         'user_id',
         'topic_id',

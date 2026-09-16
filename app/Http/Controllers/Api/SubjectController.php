@@ -34,16 +34,16 @@ class SubjectController extends Controller
         $this->authorize('create', Subject::class);
 
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
 
         $subject = Subject::create([
-            'name'        => $validated['name'],
+            'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
-            'join_code'   => Subject::generateUniqueJoinCode(),
-            'created_by'  => $request->user()->id,
-            'is_active'   => true,
+            'join_code' => Subject::generateUniqueJoinCode(),
+            'created_by' => $request->user()->id,
+            'is_active' => true,
         ]);
 
         $subject->teachers()->attach($request->user()->id);
@@ -76,7 +76,7 @@ class SubjectController extends Controller
         $this->authorize('manage', $subject);
 
         $validated = $request->validate([
-            'name'        => 'sometimes|string|max:255',
+            'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
         ]);
 
@@ -99,7 +99,7 @@ class SubjectController extends Controller
         $subject->update(['join_code' => Subject::generateUniqueJoinCode()]);
 
         return response()->json([
-            'message'   => 'Kode kelas berhasil diperbarui',
+            'message' => 'Kode kelas berhasil diperbarui',
             'join_code' => $subject->join_code,
         ]);
     }
@@ -116,11 +116,11 @@ class SubjectController extends Controller
             ->withCount('studentMasteries')
             ->get()
             ->map(fn ($s) => [
-                'id'              => $s->id,
-                'name'            => $s->name,
-                'email'           => $s->email,
+                'id' => $s->id,
+                'name' => $s->name,
+                'email' => $s->email,
                 'enrollment_type' => $s->pivot->enrollment_type,
-                'enrolled_at'     => $s->pivot->enrolled_at,
+                'enrolled_at' => $s->pivot->enrolled_at,
             ]);
 
         return response()->json($students);
@@ -142,7 +142,7 @@ class SubjectController extends Controller
         }
 
         $students = User::where('role', 'siswa')
-            ->where('name', 'like', '%' . $query . '%')
+            ->where('name', 'like', '%'.$query.'%')
             ->orderBy('name')
             ->limit(20)
             ->get(['id', 'name', 'email']);
@@ -162,8 +162,8 @@ class SubjectController extends Controller
         $this->authorize('manage', $subject);
 
         $validated = $request->validate([
-            'user_id' => 'required_without:email|integer|exists:users,id',
-            'email'   => 'required_without:user_id|email|exists:users,email',
+            'user_id' => 'required_without:email|integer|school_exists:users,id',
+            'email' => 'required_without:user_id|email|school_exists:users,email',
         ]);
 
         $student = isset($validated['user_id'])
@@ -180,7 +180,7 @@ class SubjectController extends Controller
 
         $subject->students()->attach($student->id, [
             'enrollment_type' => 'assigned',
-            'enrolled_at'     => now(),
+            'enrolled_at' => now(),
         ]);
 
         return response()->json(['message' => 'Siswa berhasil ditambahkan ke mata pelajaran'], 201);
@@ -265,7 +265,7 @@ class SubjectController extends Controller
 
         $subject->students()->attach($user->id, [
             'enrollment_type' => 'self_joined',
-            'enrolled_at'     => now(),
+            'enrolled_at' => now(),
         ]);
 
         return response()->json([

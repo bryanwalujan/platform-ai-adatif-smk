@@ -5,15 +5,14 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\LessonPlan;
 use App\Models\Subject;
+use App\Models\Topic;
 use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class GuruLessonPlanController extends Controller
 {
-    public function __construct(private SubjectAccessService $access)
-    {
-    }
+    public function __construct(private SubjectAccessService $access) {}
 
     public function index(Request $request, $subjectId)
     {
@@ -43,24 +42,27 @@ class GuruLessonPlanController extends Controller
         $this->access->assertTeaches($request->user(), $subjectId);
 
         $validated = $request->validate([
-            'meeting_number'      => 'required|integer|min:1|unique:lesson_plans,meeting_number,NULL,id,subject_id,' . $subjectId,
-            'title'               => 'required|string|max:255',
-            'learning_objective'  => 'nullable|string',
-            'description'         => 'nullable|string',
-            'scheduled_date'      => 'nullable|date',
-            'topic_id'            => 'nullable|exists:topics,id',
-            'file'                => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:15360',
+            'meeting_number' => 'required|integer|min:1|unique:lesson_plans,meeting_number,NULL,id,subject_id,'.$subjectId,
+            'title' => 'required|string|max:255',
+            'learning_objective' => 'nullable|string',
+            'description' => 'nullable|string',
+            'scheduled_date' => 'nullable|date',
+            'topic_id' => 'nullable|school_exists:topics,id',
+            'file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:15360',
         ]);
+        if (! empty($validated['topic_id'])) {
+            abort_unless(Topic::where('id', $validated['topic_id'])->where('subject_id', $subjectId)->exists(), 422, 'Topik harus berasal dari mata pelajaran RPP.');
+        }
 
         $data = [
-            'subject_id'          => $subjectId,
-            'created_by'          => $request->user()->id,
-            'topic_id'            => $validated['topic_id'] ?? null,
-            'meeting_number'      => $validated['meeting_number'],
-            'title'               => $validated['title'],
-            'learning_objective'  => $validated['learning_objective'] ?? null,
-            'description'         => $validated['description'] ?? null,
-            'scheduled_date'      => $validated['scheduled_date'] ?? null,
+            'subject_id' => $subjectId,
+            'created_by' => $request->user()->id,
+            'topic_id' => $validated['topic_id'] ?? null,
+            'meeting_number' => $validated['meeting_number'],
+            'title' => $validated['title'],
+            'learning_objective' => $validated['learning_objective'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'scheduled_date' => $validated['scheduled_date'] ?? null,
         ];
 
         if ($request->hasFile('file')) {
@@ -86,7 +88,7 @@ class GuruLessonPlanController extends Controller
         $plan = LessonPlan::with('subject:id,name')->findOrFail($id);
         $this->access->assertTeaches($request->user(), $plan->subject_id);
 
-        $topics = \App\Models\Topic::where('subject_id', $plan->subject_id)->orderBy('order')->get(['id', 'title']);
+        $topics = Topic::where('subject_id', $plan->subject_id)->orderBy('order')->get(['id', 'title']);
 
         return view('guru.lesson-plans.edit', ['plan' => $plan, 'topics' => $topics]);
     }
@@ -97,14 +99,17 @@ class GuruLessonPlanController extends Controller
         $this->access->assertTeaches($request->user(), $plan->subject_id);
 
         $validated = $request->validate([
-            'meeting_number'      => 'required|integer|min:1|unique:lesson_plans,meeting_number,' . $plan->id . ',id,subject_id,' . $plan->subject_id,
-            'title'               => 'required|string|max:255',
-            'learning_objective'  => 'nullable|string',
-            'description'         => 'nullable|string',
-            'scheduled_date'      => 'nullable|date',
-            'topic_id'            => 'nullable|exists:topics,id',
-            'file'                => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:15360',
+            'meeting_number' => 'required|integer|min:1|unique:lesson_plans,meeting_number,'.$plan->id.',id,subject_id,'.$plan->subject_id,
+            'title' => 'required|string|max:255',
+            'learning_objective' => 'nullable|string',
+            'description' => 'nullable|string',
+            'scheduled_date' => 'nullable|date',
+            'topic_id' => 'nullable|school_exists:topics,id',
+            'file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:15360',
         ]);
+        if (! empty($validated['topic_id'])) {
+            abort_unless(Topic::where('id', $validated['topic_id'])->where('subject_id', $plan->subject_id)->exists(), 422, 'Topik harus berasal dari mata pelajaran RPP.');
+        }
 
         if ($request->hasFile('file')) {
             if ($plan->file_path) {

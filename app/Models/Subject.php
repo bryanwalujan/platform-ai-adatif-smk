@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class Subject extends Model
 {
+    use BelongsToSchool;
     use HasFactory;
 
     protected $fillable = [
@@ -71,7 +73,7 @@ class Subject extends Model
     {
         do {
             $code = Str::upper(Str::random(6));
-        } while (self::where('join_code', $code)->exists());
+        } while (self::withoutGlobalScopes()->where('join_code', $code)->exists());
 
         return $code;
     }

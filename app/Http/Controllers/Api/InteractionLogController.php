@@ -1,10 +1,12 @@
 <?php
+
 // app/Http/Controllers/Api/InteractionLogController.php
 
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\InteractionLog;
+use App\Models\Material;
 use App\Models\Topic;
 use App\Models\User;
 use App\Services\SubjectAccessService;
@@ -12,9 +14,7 @@ use Illuminate\Http\Request;
 
 class InteractionLogController extends Controller
 {
-    public function __construct(private SubjectAccessService $access)
-    {
-    }
+    public function __construct(private SubjectAccessService $access) {}
 
     /**
      * POST /interaction-logs
@@ -23,16 +23,19 @@ class InteractionLogController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'topic_id'         => 'required|exists:topics,id',
-            'material_id'      => 'nullable|exists:materials,id',
-            'action'           => 'required|in:open_topic,open_material,play_video,finish_read,repeat_material',
+            'topic_id' => 'required|school_exists:topics,id',
+            'material_id' => 'nullable|school_exists:materials,id',
+            'action' => 'required|in:open_topic,open_material,play_video,finish_read,repeat_material',
             'duration_seconds' => 'nullable|integer|min:0',
         ]);
 
-        $user  = $request->user();
+        $user = $request->user();
         $topic = Topic::findOrFail($validated['topic_id']);
         $this->access->assertEnrolled($user, $topic->subject_id);
 
+        if (! empty($validated['material_id'])) {
+            abort_unless(Material::where('id', $validated['material_id'])->where('topic_id', $topic->id)->exists(), 422, 'Materi tidak sesuai topik.');
+        }
         $userId = $user->id;
 
         // Jika open_material, cek apakah sudah pernah dibuka sebelumnya
@@ -46,31 +49,32 @@ class InteractionLogController extends Controller
             if ($existing) {
                 $existing->increment('open_count');
                 $existing->update([
-                    'action'           => 'repeat_material',
+                    'action' => 'repeat_material',
                     'duration_seconds' => ($existing->duration_seconds ?? 0)
                                           + ($validated['duration_seconds'] ?? 0),
                 ]);
+
                 return response()->json([
-                    'message'    => 'Interaksi diperbarui',
-                    'is_repeat'  => true,
+                    'message' => 'Interaksi diperbarui',
+                    'is_repeat' => true,
                     'open_count' => $existing->open_count,
                 ]);
             }
         }
 
         $log = InteractionLog::create([
-            'user_id'          => $userId,
-            'topic_id'         => $validated['topic_id'],
-            'material_id'      => $validated['material_id'] ?? null,
-            'action'           => $validated['action'],
+            'user_id' => $userId,
+            'topic_id' => $validated['topic_id'],
+            'material_id' => $validated['material_id'] ?? null,
+            'action' => $validated['action'],
             'duration_seconds' => $validated['duration_seconds'] ?? 0,
-            'open_count'       => 1,
+            'open_count' => 1,
         ]);
 
         return response()->json([
-            'message'   => 'Interaksi berhasil dicatat',
+            'message' => 'Interaksi berhasil dicatat',
             'is_repeat' => false,
-            'log_id'    => $log->id,
+            'log_id' => $log->id,
         ], 201);
     }
 
@@ -92,17 +96,17 @@ class InteractionLogController extends Controller
         $repeated = $logs->where('action', 'repeat_material')
             ->sortByDesc('open_count')
             ->take(5)
-            ->map(fn($l) => [
+            ->map(fn ($l) => [
                 'material_title' => $l->material?->title ?? '-',
-                'topic_title'    => $l->topic?->title ?? '-',
-                'open_count'     => $l->open_count,
-                'total_minutes'  => round($l->duration_seconds / 60, 1),
+                'topic_title' => $l->topic?->title ?? '-',
+                'open_count' => $l->open_count,
+                'total_minutes' => round($l->duration_seconds / 60, 1),
             ])->values();
 
         return response()->json([
-            'total_interactions'  => $logs->count(),
-            'repeated_materials'  => $repeated,
-            'most_active_topic'   => $logs->groupBy('topic_id')
+            'total_interactions' => $logs->count(),
+            'repeated_materials' => $repeated,
+            'most_active_topic' => $logs->groupBy('topic_id')
                 ->map->count()
                 ->sortDesc()
                 ->keys()
@@ -140,23 +144,23 @@ class InteractionLogController extends Controller
 
         $repeated = $logs->where('action', 'repeat_material')
             ->sortByDesc('open_count')
-            ->map(fn($l) => [
+            ->map(fn ($l) => [
                 'material_title' => $l->material?->title ?? '-',
-                'topic_title'    => $l->topic?->title ?? '-',
-                'open_count'     => $l->open_count,
-                'total_minutes'  => round($l->duration_seconds / 60, 1),
+                'topic_title' => $l->topic?->title ?? '-',
+                'open_count' => $l->open_count,
+                'total_minutes' => round($l->duration_seconds / 60, 1),
             ])->values();
 
         return response()->json([
             'total_interactions' => $logs->count(),
             'repeated_materials' => $repeated,
-            'detail_logs'        => $logs->take(20)->map(fn($l) => [
-                'action'      => $l->action,
-                'topic'       => $l->topic?->title,
-                'material'    => $l->material?->title,
-                'duration'    => round($l->duration_seconds / 60, 1) . ' menit',
-                'open_count'  => $l->open_count,
-                'created_at'  => $l->created_at->diffForHumans(),
+            'detail_logs' => $logs->take(20)->map(fn ($l) => [
+                'action' => $l->action,
+                'topic' => $l->topic?->title,
+                'material' => $l->material?->title,
+                'duration' => round($l->duration_seconds / 60, 1).' menit',
+                'open_count' => $l->open_count,
+                'created_at' => $l->created_at->diffForHumans(),
             ]),
         ]);
     }

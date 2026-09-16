@@ -12,6 +12,10 @@ class SubjectPolicy
      */
     public function view(User $user, Subject $subject): bool
     {
+        if ((int) $user->school_id !== (int) $subject->school_id) {
+            return false;
+        }
+
         return $user->isAdmin()
             || $subject->teachers()->where('users.id', $user->id)->exists()
             || $subject->students()->where('users.id', $user->id)->exists();
@@ -22,6 +26,10 @@ class SubjectPolicy
      */
     public function manage(User $user, Subject $subject): bool
     {
+        if ((int) $user->school_id !== (int) $subject->school_id) {
+            return false;
+        }
+
         return $user->isAdmin()
             || $subject->teachers()->where('users.id', $user->id)->exists();
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -23,33 +24,40 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users',
+            'school_code' => 'required|string|max:32',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users',
             'password' => 'required|string|min:8',
             // 'admin' sengaja tidak diizinkan lewat register — akun admin
             // hanya dibuat lewat `php artisan make:admin` di server.
-            'role'     => 'nullable|in:siswa,guru', // default: siswa
+            'role' => 'nullable|in:siswa,guru', // default: siswa
         ]);
+
+        $school = School::where('code', strtoupper(trim($validated['school_code'])))->where('is_active', true)->first();
+        if (! $school) {
+            throw ValidationException::withMessages(['school_code' => 'Kode sekolah tidak valid atau sekolah tidak aktif.']);
+        }
 
         $role = $validated['role'] ?? 'siswa';
 
         $user = User::create([
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
+            'school_id' => $school->id,
+            'name' => $validated['name'],
+            'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role'     => $role,
+            'role' => $role,
             // Guru baru menunggu approval admin dulu sebelum bisa pakai fitur
             // guru (lihat middleware EnsureApproved) — siswa langsung aktif
             // begitu email-nya diverifikasi. Dua gate independen: verifikasi
             // email (semua role) lalu approval admin (guru saja).
-            'status'   => $role === 'guru' ? 'pending' : 'active',
+            'status' => $role === 'guru' ? 'pending' : 'active',
         ]);
 
         EmailVerificationController::sendVerificationCode($user);
 
         return response()->json([
             'message' => 'Akun berhasil dibuat. Kode verifikasi sudah dikirim ke email Anda.',
-            'email'   => $user->email,
+            'email' => $user->email,
         ], 201);
     }
 
@@ -59,7 +67,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $validated = $request->validate([
-            'email'    => 'required|email',
+            'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
@@ -76,11 +84,13 @@ class AuthController extends Controller
         // verifikasi (bukan sekadar "email/password salah").
         if (! $user->hasVerifiedEmail()) {
             return response()->json([
-                'message'          => 'Email belum diverifikasi. Cek kotak masuk email Anda.',
+                'message' => 'Email belum diverifikasi. Cek kotak masuk email Anda.',
                 'needs_verification' => true,
-                'email'            => $user->email,
+                'email' => $user->email,
             ], 403);
         }
+
+        abort_unless($user->school?->is_active && $user->status !== 'rejected', 403, 'Sekolah atau akun tidak aktif. Hubungi admin sekolah.');
 
         // Hapus token lama agar tidak menumpuk
         $user->tokens()->delete();
@@ -89,7 +99,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user'  => $user->toAuthArray(),
+            'user' => $user->toAuthArray(),
         ]);
     }
 
@@ -121,15 +131,15 @@ class AuthController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-            'name'  => 'sometimes|string|max:255',
-            'email' => 'sometimes|email|unique:users,email,' . $user->id,
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|email|unique:users,email,'.$user->id,
         ]);
 
         $user->update($validated);
 
         return response()->json([
             'message' => 'Profil berhasil diperbarui',
-            'user'    => $user->fresh()->toAuthArray(),
+            'user' => $user->fresh()->toAuthArray(),
         ]);
     }
 
@@ -154,8 +164,8 @@ class AuthController extends Controller
         $user->update(['photo_path' => $path]);
 
         return response()->json([
-            'message'   => 'Foto profil berhasil diperbarui',
-            'photo_url' => Storage::url($path),
+            'message' => 'Foto profil berhasil diperbarui',
+            'photo_url' => url('/api/files/'.$path),
         ]);
     }
 }

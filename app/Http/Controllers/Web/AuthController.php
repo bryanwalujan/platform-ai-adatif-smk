@@ -31,7 +31,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $credentials = $request->validate([
-            'email'    => 'required|email',
+            'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
@@ -40,6 +40,12 @@ class AuthController extends Controller
         }
 
         $user = Auth::user();
+
+        if (! $user->school?->is_active || $user->status === 'rejected') {
+            Auth::logout();
+
+            return back()->withErrors(['email' => 'Sekolah atau akun tidak aktif.'])->onlyInput('email');
+        }
 
         // Siswa tidak punya panel web — mereka pakai aplikasi Flutter
         // (API Sanctum, routes/api.php). Ditolak di sini supaya pesannya
@@ -89,9 +95,9 @@ class AuthController extends Controller
     private function redirectPathFor($user): string
     {
         return match (true) {
-            $user->isAdmin()   => route('admin.dashboard'),
+            $user->isAdmin() => route('admin.dashboard'),
             $user->isTeacher() => route('guru.dashboard'),
-            default            => route('login'),
+            default => route('login'),
         };
     }
 }

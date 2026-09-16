@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -13,6 +14,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class QuizAttempt extends Model
 {
+    use BelongsToSchool;
+
     protected $fillable = [
         'user_id',
         'quiz_id',

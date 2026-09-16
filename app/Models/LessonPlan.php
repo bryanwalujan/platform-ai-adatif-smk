@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class LessonPlan extends Model
 {
+    use BelongsToSchool;
     use HasFactory;
 
     protected $fillable = [
@@ -32,7 +34,7 @@ class LessonPlan extends Model
 
     protected $casts = [
         'scheduled_date' => 'date',
-        'is_completed'   => 'boolean',
+        'is_completed' => 'boolean',
     ];
 
     // Selalu disertakan di JSON supaya index/show/store/update konsisten
@@ -42,7 +44,7 @@ class LessonPlan extends Model
 
     public function getFileUrlAttribute(): ?string
     {
-        return $this->file_path ? url('/api/files/' . $this->file_path) : null;
+        return $this->file_path ? url('/api/files/'.$this->file_path) : null;
     }
 
     public function subject()

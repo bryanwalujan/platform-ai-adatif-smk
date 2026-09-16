@@ -10,9 +10,7 @@ use Illuminate\Http\Request;
 
 class LearningLogController extends Controller
 {
-    public function __construct(private SubjectAccessService $access)
-    {
-    }
+    public function __construct(private SubjectAccessService $access) {}
 
     public function index(Request $request)
     {
@@ -40,19 +38,19 @@ class LearningLogController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'topic_id'           => 'required|exists:topics,id',
-            'quiz_score'         => 'nullable|numeric|min:0|max:100',
+            'topic_id' => 'required|school_exists:topics,id',
+            'quiz_score' => 'nullable|numeric|min:0|max:100',
             'time_spent_minutes' => 'nullable|integer|min:0',
         ]);
 
-        $user  = $request->user();
+        $user = $request->user();
         $topic = Topic::findOrFail($validated['topic_id']);
         $this->access->assertEnrolled($user, $topic->subject_id);
 
         $log = LearningLog::create([
-            'user_id'            => $user->id,
-            'topic_id'           => $validated['topic_id'],
-            'quiz_score'         => $validated['quiz_score'] ?? null,
+            'user_id' => $user->id,
+            'topic_id' => $validated['topic_id'],
+            'quiz_score' => $validated['quiz_score'] ?? null,
             'time_spent_minutes' => $validated['time_spent_minutes'] ?? 0,
         ]);
 

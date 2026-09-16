@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\AdaptiveEngineService;
 use App\Services\NotificationService;
 use App\Services\SubjectAccessService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 /**
@@ -26,22 +27,21 @@ class GuruPanelController extends Controller
     public function __construct(
         private SubjectAccessService $access,
         private AdaptiveEngineService $engine,
-    ) {
-    }
+    ) {}
 
     public function dashboard(Request $request)
     {
         $subjectIds = $this->relevantSubjectIds($request);
 
         return view('guru.dashboard', [
-            'totalStudents'   => User::where('role', 'siswa')
+            'totalStudents' => User::where('role', 'siswa')
                 ->whereHas('subjectsEnrolled', fn ($q) => $q->whereIn('subjects.id', $subjectIds))
                 ->count(),
-            'totalProjects'   => PblProject::whereIn('subject_id', $subjectIds)->count(),
+            'totalProjects' => PblProject::whereIn('subject_id', $subjectIds)->count(),
             'pendingProjects' => PblProject::whereIn('subject_id', $subjectIds)->where('status', 'submitted')->count(),
-            'totalTopics'     => Topic::whereIn('subject_id', $subjectIds)->count(),
-            'subjectOptions'  => $this->teacherSubjectOptions($request),
-            'currentSubjectId'=> $request->subject_id,
+            'totalTopics' => Topic::whereIn('subject_id', $subjectIds)->count(),
+            'subjectOptions' => $this->teacherSubjectOptions($request),
+            'currentSubjectId' => $request->subject_id,
         ]);
     }
 
@@ -62,18 +62,18 @@ class GuruPanelController extends Controller
             ->orderBy('name')
             ->get()
             ->map(fn ($s) => [
-                'id'                 => $s->id,
-                'name'               => $s->name,
-                'email'              => $s->email,
+                'id' => $s->id,
+                'name' => $s->name,
+                'email' => $s->email,
                 'pbl_projects_count' => $s->pbl_projects_count,
-                'avg_mastery'        => round($s->studentMasteries->avg(fn ($m) => $this->engine->effectiveMastery($m)) ?? 0, 1),
-                'topics_learned'     => $s->studentMasteries->count(),
+                'avg_mastery' => round($s->studentMasteries->avg(fn ($m) => $this->engine->effectiveMastery($m)) ?? 0, 1),
+                'topics_learned' => $s->studentMasteries->count(),
             ]);
 
         return view('guru.students.index', [
-            'students'         => $students,
-            'search'           => $request->search,
-            'subjectOptions'   => $this->teacherSubjectOptions($request),
+            'students' => $students,
+            'search' => $request->search,
+            'subjectOptions' => $this->teacherSubjectOptions($request),
             'currentSubjectId' => $request->subject_id,
         ]);
     }
@@ -89,13 +89,13 @@ class GuruPanelController extends Controller
             ->with('topic:id,title')
             ->get()
             ->map(fn ($m) => [
-                'topic_title'   => $m->topic?->title ?? '-',
+                'topic_title' => $m->topic?->title ?? '-',
                 'mastery_level' => $this->engine->effectiveMastery($m),
-                'attempts'      => $m->attempts,
-                'last_accessed' => $m->last_accessed instanceof \Carbon\Carbon
+                'attempts' => $m->attempts,
+                'last_accessed' => $m->last_accessed instanceof Carbon
                                     ? $m->last_accessed->diffForHumans()
                                     : ($m->last_accessed
-                                        ? \Carbon\Carbon::parse($m->last_accessed)->diffForHumans()
+                                        ? Carbon::parse($m->last_accessed)->diffForHumans()
                                         : '-'),
             ])
             ->sortByDesc('mastery_level')
@@ -107,11 +107,11 @@ class GuruPanelController extends Controller
             ->get();
 
         return view('guru.students.show', [
-            'student'        => $student,
+            'student' => $student,
             'averageMastery' => round($this->engine->getAverageMastery((int) $studentId, $subjectIds), 1),
-            'pblLevel'       => $this->engine->getPBLLevel((int) $studentId, $subjectIds),
-            'masteries'      => $masteries,
-            'projects'       => $projects,
+            'pblLevel' => $this->engine->getPBLLevel((int) $studentId, $subjectIds),
+            'masteries' => $masteries,
+            'projects' => $projects,
         ]);
     }
 
@@ -127,15 +127,15 @@ class GuruPanelController extends Controller
     public function notifyStudent(Request $request, $studentId)
     {
         $validated = $request->validate([
-            'title'   => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'message' => 'required|string',
         ]);
 
         $this->assertTeachesStudent($request, (int) $studentId);
 
         app(NotificationService::class)->send(
-            userId:  (int) $studentId,
-            title:   $validated['title'],
+            userId: (int) $studentId,
+            title: $validated['title'],
             message: $validated['message'],
         );
 
@@ -154,8 +154,8 @@ class GuruPanelController extends Controller
             ->get();
 
         return view('guru.projects.pending', [
-            'projects'         => $projects,
-            'subjectOptions'   => $this->teacherSubjectOptions($request),
+            'projects' => $projects,
+            'subjectOptions' => $this->teacherSubjectOptions($request),
             'currentSubjectId' => $request->subject_id,
         ]);
     }
@@ -171,9 +171,9 @@ class GuruPanelController extends Controller
             ->get();
 
         return view('guru.projects.index', [
-            'projects'         => $projects,
-            'filters'          => $request->only(['status']),
-            'subjectOptions'   => $this->teacherSubjectOptions($request),
+            'projects' => $projects,
+            'filters' => $request->only(['status']),
+            'subjectOptions' => $this->teacherSubjectOptions($request),
             'currentSubjectId' => $request->subject_id,
         ]);
     }
@@ -193,13 +193,14 @@ class GuruPanelController extends Controller
     public function gradeProject(Request $request, $projectId)
     {
         $validated = $request->validate([
-            'feedback'                  => 'required|string|max:2000',
-            'rubric_scores'              => 'required|array',
-            'rubric_scores.kreativitas'  => 'required|integer|min:0|max:100',
-            'rubric_scores.teknis'       => 'required|integer|min:0|max:100',
-            'rubric_scores.konsep'       => 'required|integer|min:0|max:100',
-            'rubric_scores.presentasi'   => 'required|integer|min:0|max:100',
-            'rubric_feedback'            => 'nullable|array',
+            'feedback' => 'required|string|max:2000',
+            'rubric_scores' => 'required|array:kreativitas,teknis,konsep,presentasi',
+            'rubric_scores.kreativitas' => 'required|integer|min:0|max:100',
+            'rubric_scores.teknis' => 'required|integer|min:0|max:100',
+            'rubric_scores.konsep' => 'required|integer|min:0|max:100',
+            'rubric_scores.presentasi' => 'required|integer|min:0|max:100',
+            'rubric_feedback' => 'nullable|array:kreativitas,teknis,konsep,presentasi',
+            'rubric_feedback.*' => 'nullable|string|max:2000',
         ]);
 
         $project = PblProject::findOrFail($projectId);
@@ -209,17 +210,17 @@ class GuruPanelController extends Controller
             return redirect()->route('guru.projects.index')->with('error', 'Proyek sudah pernah dinilai.');
         }
 
-        $project->rubric_scores   = $validated['rubric_scores'];
+        $project->rubric_scores = $validated['rubric_scores'];
         $project->rubric_feedback = $validated['rubric_feedback'] ?? null;
-        $project->feedback        = $validated['feedback'];
-        $project->score           = $project->calculateWeightedScore();
-        $project->status          = 'graded';
-        $project->graded_at       = now();
+        $project->feedback = $validated['feedback'];
+        $project->score = $project->calculateWeightedScore();
+        $project->status = 'graded';
+        $project->graded_at = now();
         $project->save();
 
         app(NotificationService::class)->send(
-            userId:  $project->user_id,
-            title:   '✅ Proyek PBL Sudah Dinilai',
+            userId: $project->user_id,
+            title: '✅ Proyek PBL Sudah Dinilai',
             message: "Proyek \"{$project->title}\" mendapat nilai {$project->score}. Lihat feedback dari guru!",
         );
 

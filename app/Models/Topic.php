@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Topic extends Model
 {
+    use BelongsToSchool;
     use HasFactory;
 
     protected $fillable = ['subject_id', 'title', 'description', 'order'];
@@ -30,7 +32,7 @@ class Topic extends Model
     {
         return $this->hasMany(Quiz::class);
     }
-    
+
     public function learningLogs()
     {
         return $this->hasMany(LearningLog::class);

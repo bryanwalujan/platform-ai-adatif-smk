@@ -1,12 +1,16 @@
 <?php
+
 // app/Models/AppNotification.php
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Model;
 
 class AppNotification extends Model
 {
+    use BelongsToSchool;
+
     protected $table = 'app_notifications';
 
     protected $fillable = [
@@ -20,7 +24,7 @@ class AppNotification extends Model
 
     protected $casts = [
         'is_read' => 'boolean',
-        'data'    => 'array',
+        'data' => 'array',
     ];
 
     public function user()

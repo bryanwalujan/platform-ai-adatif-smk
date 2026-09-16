@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\AdaptiveEngineService;
 use App\Services\NotificationService;
 use App\Services\SubjectAccessService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class TeacherController extends Controller
@@ -20,8 +21,7 @@ class TeacherController extends Controller
     public function __construct(
         private SubjectAccessService $access,
         private AdaptiveEngineService $engine,
-    ) {
-    }
+    ) {}
 
     // relevantSubjectIds() dan assertTeachesStudent() sekarang datang dari
     // ScopesToTeacherSubjects — dipakai bareng Web\GuruPanelController
@@ -36,12 +36,12 @@ class TeacherController extends Controller
         $subjectIds = $this->relevantSubjectIds($request);
 
         return response()->json([
-            'total_students'   => User::where('role', 'siswa')
+            'total_students' => User::where('role', 'siswa')
                 ->whereHas('subjectsEnrolled', fn ($q) => $q->whereIn('subjects.id', $subjectIds))
                 ->count(),
-            'total_projects'   => PblProject::whereIn('subject_id', $subjectIds)->count(),
+            'total_projects' => PblProject::whereIn('subject_id', $subjectIds)->count(),
             'pending_projects' => PblProject::whereIn('subject_id', $subjectIds)->where('status', 'submitted')->count(),
-            'total_topics'     => Topic::whereIn('subject_id', $subjectIds)->count(),
+            'total_topics' => Topic::whereIn('subject_id', $subjectIds)->count(),
         ]);
     }
 
@@ -61,10 +61,10 @@ class TeacherController extends Controller
                 fn ($t) => $t->whereIn('subject_id', $subjectIds)
             )])
             ->get()
-            ->map(fn($s) => [
-                'id'         => $s->id,
-                'name'       => $s->name,
-                'email'      => $s->email,
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'email' => $s->email,
                 // PERBAIKAN: pakai mastery EFEKTIF (kena decay) supaya guru
                 // tidak melihat siswa "terlihat aman" padahal sudah lama tidak
                 // sentuh materinya — konsisten dengan yang dilihat siswa sendiri.
@@ -98,44 +98,44 @@ class TeacherController extends Controller
             ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->get()
-            ->map(fn($m) => [
-                'topic_title'   => $m->topic?->title ?? '-',
+            ->map(fn ($m) => [
+                'topic_title' => $m->topic?->title ?? '-',
                 'mastery_level' => $this->engine->effectiveMastery($m),
-                'attempts'      => $m->attempts,
+                'attempts' => $m->attempts,
                 // PERBAIKAN: pastikan tidak crash jika last_accessed null atau string
-                'last_accessed' => $m->last_accessed instanceof \Carbon\Carbon
+                'last_accessed' => $m->last_accessed instanceof Carbon
                                     ? $m->last_accessed->diffForHumans()
                                     : ($m->last_accessed
-                                        ? \Carbon\Carbon::parse($m->last_accessed)->diffForHumans()
+                                        ? Carbon::parse($m->last_accessed)->diffForHumans()
                                         : '-'),
             ])
             ->sortByDesc('mastery_level')
             ->values();
 
         $avgMastery = $this->engine->getAverageMastery((int) $studentId, $subjectIds);
-        $pblLevel   = $this->engine->getPBLLevel((int) $studentId, $subjectIds);
+        $pblLevel = $this->engine->getPBLLevel((int) $studentId, $subjectIds);
 
         $projects = PblProject::where('user_id', $studentId)
             ->whereIn('subject_id', $subjectIds)
             ->latest()
             ->get()
-            ->map(fn($p) => [
-                'id'          => $p->id,
-                'title'       => $p->title,
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'title' => $p->title,
                 'description' => $p->description,
-                'level'       => $p->level,
-                'status'      => $p->status,
-                'score'       => $p->score,
-                'feedback'    => $p->feedback,
+                'level' => $p->level,
+                'status' => $p->status,
+                'score' => $p->score,
+                'feedback' => $p->feedback,
                 'submitted_at' => $p->created_at?->toDateString(),
             ]);
 
         return response()->json([
-            'student'         => ['id' => $student->id, 'name' => $student->name],
+            'student' => ['id' => $student->id, 'name' => $student->name],
             'average_mastery' => round($avgMastery, 1),
-            'pbl_level'       => $pblLevel,
-            'masteries'       => $masteries,
-            'pbl_projects'    => $projects,
+            'pbl_level' => $pblLevel,
+            'masteries' => $masteries,
+            'pbl_projects' => $projects,
         ]);
     }
 
@@ -153,11 +153,11 @@ class TeacherController extends Controller
             ->whereHas('topic', fn ($q) => $q->whereIn('subject_id', $subjectIds))
             ->with('topic:id,title')
             ->get()
-            ->map(fn($m) => [
-                'topic_id'      => $m->topic_id,
-                'topic_title'   => $m->topic?->title ?? '-',
+            ->map(fn ($m) => [
+                'topic_id' => $m->topic_id,
+                'topic_title' => $m->topic?->title ?? '-',
                 'mastery_level' => $this->engine->effectiveMastery($m),
-                'attempts'      => $m->attempts,
+                'attempts' => $m->attempts,
                 'last_accessed' => $m->last_accessed?->toIso8601String(),
             ])
             ->sortByDesc('mastery_level')
@@ -178,20 +178,20 @@ class TeacherController extends Controller
             ->with('user:id,name,email', 'topic:id,title')
             ->latest()
             ->get()
-            ->map(fn($p) => [
-                'id'          => $p->id,
-                'title'       => $p->title,
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'title' => $p->title,
                 'description' => $p->description,
-                'level'       => $p->level,
-                'status'      => $p->status,
-                'user'        => $p->user,
-                'topic'       => $p->topic
+                'level' => $p->level,
+                'status' => $p->status,
+                'user' => $p->user,
+                'topic' => $p->topic
                                     ? ['id' => $p->topic->id, 'title' => $p->topic->title]
                                     : null,
-                'file_name'   => $p->file_name,
-                'file_url' => $p->file_path
-                ? url('/api/files/' . $p->file_path)
-                : null,
+                'attachments' => $p->formattedAttachments(),
+                'rubric' => PblProject::rubricCriteria(),
+                'file_name' => $p->formattedAttachments()[0]['name'] ?? null,
+                'file_url' => $p->formattedAttachments()[0]['url'] ?? null,
                 'submitted_at' => $p->created_at?->toDateString(),
             ]);
 
@@ -209,21 +209,21 @@ class TeacherController extends Controller
             ->with('user:id,name,email', 'topic:id,title')
             ->latest()
             ->get()
-            ->map(fn($p) => [
-                'id'          => $p->id,
-                'title'       => $p->title,
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'title' => $p->title,
                 'description' => $p->description,
-                'level'       => $p->level,
-                'status'      => $p->status,
-                'user'        => $p->user,
-                'topic'       => $p->topic
+                'level' => $p->level,
+                'status' => $p->status,
+                'user' => $p->user,
+                'topic' => $p->topic
                                     ? ['id' => $p->topic->id, 'title' => $p->topic->title]
                                     : null,
-                'score'       => $p->score,
-                'file_name'   => $p->file_name,
-                'file_url'    => $p->file_path
-                                    ? url('/api/files/' . $p->file_path)
-                                    : null,
+                'score' => $p->score,
+                'attachments' => $p->formattedAttachments(),
+                'rubric' => PblProject::rubricCriteria(),
+                'file_name' => $p->formattedAttachments()[0]['name'] ?? null,
+                'file_url' => $p->formattedAttachments()[0]['url'] ?? null,
                 'submitted_at' => $p->created_at?->toDateString(),
             ]);
 
@@ -236,13 +236,14 @@ class TeacherController extends Controller
     public function gradeProject(Request $request, $projectId)
     {
         $request->validate([
-            'feedback'         => 'required|string|max:2000',
-            'rubric_scores'    => 'required|array',
-            'rubric_scores.kreativitas'  => 'required|integer|min:0|max:100',
-            'rubric_scores.teknis'       => 'required|integer|min:0|max:100',
-            'rubric_scores.konsep'       => 'required|integer|min:0|max:100',
-            'rubric_scores.presentasi'   => 'required|integer|min:0|max:100',
-            'rubric_feedback'  => 'nullable|array',
+            'feedback' => 'required|string|max:2000',
+            'rubric_scores' => 'required|array:kreativitas,teknis,konsep,presentasi',
+            'rubric_scores.kreativitas' => 'required|integer|min:0|max:100',
+            'rubric_scores.teknis' => 'required|integer|min:0|max:100',
+            'rubric_scores.konsep' => 'required|integer|min:0|max:100',
+            'rubric_scores.presentasi' => 'required|integer|min:0|max:100',
+            'rubric_feedback' => 'nullable|array:kreativitas,teknis,konsep,presentasi',
+            'rubric_feedback.*' => 'nullable|string|max:2000',
         ]);
 
         $project = PblProject::findOrFail($projectId);
@@ -253,25 +254,25 @@ class TeacherController extends Controller
         }
 
         // Hitung skor total dengan weighted average
-        $project->rubric_scores   = $request->rubric_scores;
+        $project->rubric_scores = $request->rubric_scores;
         $project->rubric_feedback = $request->rubric_feedback;
-        $project->feedback        = $request->feedback;
-        $project->score           = $project->calculateWeightedScore();
-        $project->status          = 'graded';
-        $project->graded_at       = now();
+        $project->feedback = $request->feedback;
+        $project->score = $project->calculateWeightedScore();
+        $project->status = 'graded';
+        $project->graded_at = now();
         $project->save();
 
         // Kirim notifikasi ke siswa
         app(NotificationService::class)->send(
-            userId:  $project->user_id,
-            title:   '✅ Proyek PBL Sudah Dinilai',
+            userId: $project->user_id,
+            title: '✅ Proyek PBL Sudah Dinilai',
             message: "Proyek \"{$project->title}\" mendapat nilai {$project->score}. "
-                     . "Lihat feedback dari guru!",
+                     .'Lihat feedback dari guru!',
         );
 
         return response()->json([
             'message' => 'Penilaian berhasil disimpan',
-            'score'   => $project->score,
+            'score' => $project->score,
             'project' => $project,
         ]);
     }
@@ -279,15 +280,15 @@ class TeacherController extends Controller
     public function notifyStudent(Request $request, $studentId)
     {
         $request->validate([
-            'title'   => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'message' => 'required|string',
         ]);
 
         $this->assertTeachesStudent($request, (int) $studentId);
 
         app(NotificationService::class)->send(
-            userId:  (int) $studentId,
-            title:   $request->title,
+            userId: (int) $studentId,
+            title: $request->title,
             message: $request->message,
         );
 

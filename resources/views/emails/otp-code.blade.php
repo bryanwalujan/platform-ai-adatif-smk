@@ -11,7 +11,7 @@
                 <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:12px; overflow:hidden;">
                     <tr>
                         <td style="background:#4f46e5; padding:24px 32px;">
-                            <span style="color:#ffffff; font-size:18px; font-weight:700;">SMK Adaptif</span>
+                            <span style="color:#ffffff; font-size:18px; font-weight:700;">Belajar Adaptif</span>
                         </td>
                     </tr>
                     <tr>
@@ -37,7 +37,7 @@
                     </tr>
                     <tr>
                         <td style="padding:16px 32px; background:#f9fafb; text-align:center;">
-                            <span style="font-size:11px; color:#9ca3af;">Email otomatis dari SMK Adaptif — mohon tidak membalas email ini.</span>
+                            <span style="font-size:11px; color:#9ca3af;">Email otomatis dari Belajar Adaptif — mohon tidak membalas email ini.</span>
                         </td>
                     </tr>
                 </table>

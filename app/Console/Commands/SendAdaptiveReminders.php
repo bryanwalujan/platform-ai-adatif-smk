@@ -1,32 +1,35 @@
 <?php
+
 // app/Console/Commands/SendAdaptiveReminders.php
 
 namespace App\Console\Commands;
 
-use App\Models\User;
+use App\Models\InteractionLog;
 use App\Models\LearningLog;
 use App\Models\StudentTopicMastery;
-use App\Models\InteractionLog;
 use App\Models\TestResult;
 use App\Models\Topic;
+use App\Models\User;
 use App\Services\AdaptiveEngineService;
 use App\Services\NotificationService;
+use App\Support\SchoolContext;
 use Illuminate\Console\Command;
 
 class SendAdaptiveReminders extends Command
 {
-    protected $signature   = 'adaptive:remind';
+    protected $signature = 'adaptive:remind';
+
     protected $description = 'Kirim notifikasi proaktif AI ke semua siswa';
 
     public function handle(NotificationService $notifService, AdaptiveEngineService $engine): void
     {
         // Laravel 12: inject via handle(), bukan constructor
-        $students = User::where('role', 'siswa')->get();
+        $students = User::where('role', 'siswa')->where('status', 'active')->whereHas('school', fn ($q) => $q->where('is_active', true))->get();
 
         $this->info("Memproses {$students->count()} siswa...");
 
         foreach ($students as $student) {
-            $this->checkAndNotify($student, $notifService, $engine);
+            app(SchoolContext::class)->run($student->school_id, fn () => $this->checkAndNotify($student, $notifService, $engine));
             $this->line("  ✓ {$student->name}");
         }
 
@@ -38,21 +41,21 @@ class SendAdaptiveReminders extends Command
         $userId = $student->id;
 
         // 1. Tidak aktif >= 2 hari
-        $lastLog   = LearningLog::where('user_id', $userId)->latest()->first();
+        $lastLog = LearningLog::where('user_id', $userId)->latest()->first();
         $daysSince = $lastLog
             ? now()->diffInDays($lastLog->created_at)
             : 999;
 
         if ($daysSince >= 2) {
             $notifService->createIfPublic($userId, [
-                'type'    => 'reminder',
-                'title'   => '⏰ Jangan Lupa Belajar!',
+                'type' => 'reminder',
+                'title' => '⏰ Jangan Lupa Belajar!',
                 'message' => $daysSince >= 999
                     ? 'Kamu belum pernah belajar. Yuk mulai sekarang!'
                     : "Sudah {$daysSince} hari kamu tidak belajar. "
-                      . "Konsistensi adalah kunci keberhasilan!",
-                'data'    => [
-                    'flag'       => 'inactivity_' . now()->toDateString(),
+                      .'Konsistensi adalah kunci keberhasilan!',
+                'data' => [
+                    'flag' => 'inactivity_'.now()->toDateString(),
                     'days_since' => $daysSince,
                 ],
             ]);
@@ -72,20 +75,24 @@ class SendAdaptiveReminders extends Command
             ->get();
 
         foreach ($candidateMasteries as $m) {
-            if (!$m->topic) continue;
+            if (! $m->topic) {
+                continue;
+            }
 
             $effective = $engine->effectiveMastery($m);
-            if ($effective >= 45) continue;
+            if ($effective >= 45) {
+                continue;
+            }
 
             $notifService->createIfPublic($userId, [
-                'type'    => 'recommendation',
-                'title'   => '📖 Saatnya Mengulang Materi',
+                'type' => 'recommendation',
+                'title' => '📖 Saatnya Mengulang Materi',
                 'message' => "Mastery topik \"{$m->topic->title}\" kamu "
-                           . round($effective) . "% dan sudah "
-                           . now()->diffInDays($m->last_accessed)
-                           . " hari tidak diulang.",
-                'data'    => [
-                    'flag'     => 'low_mastery_reminder_' . now()->toDateString(),
+                           .round($effective).'% dan sudah '
+                           .now()->diffInDays($m->last_accessed)
+                           .' hari tidak diulang.',
+                'data' => [
+                    'flag' => 'low_mastery_reminder_'.now()->toDateString(),
                     'topic_id' => $m->topic_id,
                 ],
             ]);
@@ -103,17 +110,19 @@ class SendAdaptiveReminders extends Command
                 ->where('type', 'pre_test')
                 ->exists();
 
-            if (!$hasPreTest) {
+            if (! $hasPreTest) {
                 $topic = Topic::find($topicId);
-                if (!$topic) continue;
+                if (! $topic) {
+                    continue;
+                }
 
                 $notifService->createIfPublic($userId, [
-                    'type'    => 'reminder',
-                    'title'   => '📝 Pre-Test Belum Dikerjakan',
+                    'type' => 'reminder',
+                    'title' => '📝 Pre-Test Belum Dikerjakan',
                     'message' => "Kamu sudah membuka topik \"{$topic->title}\" "
-                               . "tapi belum mengerjakan pre-test.",
-                    'data'    => [
-                        'flag'     => 'pretest_reminder_' . $topicId,
+                               .'tapi belum mengerjakan pre-test.',
+                    'data' => [
+                        'flag' => 'pretest_reminder_'.$topicId,
                         'topic_id' => $topicId,
                     ],
                 ]);

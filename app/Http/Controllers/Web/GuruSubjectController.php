@@ -15,9 +15,7 @@ use Illuminate\Http\Request;
  */
 class GuruSubjectController extends Controller
 {
-    public function __construct(private SubjectAccessService $access)
-    {
-    }
+    public function __construct(private SubjectAccessService $access) {}
 
     public function index(Request $request)
     {
@@ -39,16 +37,16 @@ class GuruSubjectController extends Controller
         $this->authorize('create', Subject::class);
 
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
 
         $subject = Subject::create([
-            'name'        => $validated['name'],
+            'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
-            'join_code'   => Subject::generateUniqueJoinCode(),
-            'created_by'  => $request->user()->id,
-            'is_active'   => true,
+            'join_code' => Subject::generateUniqueJoinCode(),
+            'created_by' => $request->user()->id,
+            'is_active' => true,
         ]);
 
         $subject->teachers()->attach($request->user()->id);
@@ -81,7 +79,7 @@ class GuruSubjectController extends Controller
         $this->authorize('manage', $subject);
 
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
 
@@ -98,7 +96,7 @@ class GuruSubjectController extends Controller
 
         $subject->update(['join_code' => Subject::generateUniqueJoinCode()]);
 
-        return back()->with('success', 'Kode kelas berhasil diperbarui: ' . $subject->join_code);
+        return back()->with('success', 'Kode kelas berhasil diperbarui: '.$subject->join_code);
     }
 
     /**
@@ -115,7 +113,7 @@ class GuruSubjectController extends Controller
         }
 
         $students = User::where('role', 'siswa')
-            ->where('name', 'like', '%' . $query . '%')
+            ->where('name', 'like', '%'.$query.'%')
             ->orderBy('name')
             ->limit(20)
             ->get(['id', 'name', 'email']);
@@ -129,8 +127,8 @@ class GuruSubjectController extends Controller
         $this->authorize('manage', $subject);
 
         $validated = $request->validate([
-            'user_id' => 'required_without:email|integer|exists:users,id',
-            'email'   => 'required_without:user_id|email|exists:users,email',
+            'user_id' => 'required_without:email|integer|school_exists:users,id',
+            'email' => 'required_without:user_id|email|school_exists:users,email',
         ]);
 
         $student = isset($validated['user_id'])
@@ -147,7 +145,7 @@ class GuruSubjectController extends Controller
 
         $subject->students()->attach($student->id, [
             'enrollment_type' => 'assigned',
-            'enrolled_at'     => now(),
+            'enrolled_at' => now(),
         ]);
 
         return back()->with('success', "\"{$student->name}\" berhasil ditambahkan ke mata pelajaran.");

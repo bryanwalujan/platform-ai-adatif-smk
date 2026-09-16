@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -9,7 +10,8 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasApiTokens;
+    use BelongsToSchool;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -17,6 +19,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'photo_path',
         'name',
         'email',
         'password',
@@ -144,16 +147,18 @@ class User extends Authenticatable
     public function toAuthArray(): array
     {
         return [
-            'id'        => $this->id,
-            'name'      => $this->name,
-            'email'     => $this->email,
-            'role'      => $this->role,
-            'is_guru'   => $this->role === 'guru',
-            'is_admin'  => $this->role === 'admin',
-            'status'    => $this->status,
+            'id' => $this->id,
+            'school_id' => $this->school_id,
+            'school' => $this->school ? ['id' => $this->school->id, 'name' => $this->school->name, 'code' => $this->school->code] : null,
+            'name' => $this->name,
+            'email' => $this->email,
+            'role' => $this->role,
+            'is_guru' => $this->role === 'guru',
+            'is_admin' => $this->role === 'admin',
+            'status' => $this->status,
             'email_verified' => $this->hasVerifiedEmail(),
             'photo_url' => $this->photo_path
-                            ? \Illuminate\Support\Facades\Storage::url($this->photo_path)
+                            ? url('/api/files/'.$this->photo_path)
                             : null,
         ];
     }

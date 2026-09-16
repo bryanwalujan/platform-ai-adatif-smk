@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -23,6 +24,10 @@ class SubjectAccessService
      */
     public function teaches(User $user, int $subjectId): bool
     {
+        if (! Subject::where('id', $subjectId)->where('school_id', $user->school_id)->exists()) {
+            return false;
+        }
+
         return $user->isAdmin()
             || ($user->isTeacher() && $user->subjectsTeaching()->where('subjects.id', $subjectId)->exists());
     }

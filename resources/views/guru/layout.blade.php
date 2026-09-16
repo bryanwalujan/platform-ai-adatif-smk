@@ -72,7 +72,7 @@
 <body>
     <div class="app">
         <aside class="sidebar">
-            <div class="brand">Panel Guru<small>SMK Multi-Mapel</small></div>
+            <div class="brand">Panel Guru<small>{{ auth()->user()->school?->name ?? 'Belajar Adaptif' }}</small></div>
             <nav>
                 <a href="{{ route('guru.dashboard') }}" class="{{ request()->routeIs('guru.dashboard') ? 'active' : '' }}">Dashboard</a>
                 <a href="{{ route('guru.students.index') }}" class="{{ request()->routeIs('guru.students.*') ? 'active' : '' }}">Siswa</a>

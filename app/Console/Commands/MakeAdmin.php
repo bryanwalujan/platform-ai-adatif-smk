@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
@@ -18,6 +19,7 @@ class MakeAdmin extends Command
      * (mode interaktif — akan tanya nama/email/password satu-satu)
      */
     protected $signature = 'make:admin
+                            {--school= : Kode sekolah admin}
                             {--name= : Nama admin}
                             {--email= : Email admin}
                             {--password= : Password admin (min 8 karakter)}';
@@ -26,6 +28,14 @@ class MakeAdmin extends Command
 
     public function handle(): int
     {
+        $code = strtoupper($this->option('school') ?: $this->ask('Kode sekolah'));
+        $school = School::where('code', $code)->where('is_active', true)->first();
+        if (! $school) {
+            $this->error('Sekolah tidak ditemukan atau tidak aktif.');
+
+            return self::FAILURE;
+        }
+
         $name = $this->option('name') ?: $this->ask('Nama admin');
         $email = $this->option('email') ?: $this->ask('Email admin');
         $password = $this->option('password') ?: $this->secret('Password admin (min 8 karakter)');
@@ -33,8 +43,8 @@ class MakeAdmin extends Command
         $validator = Validator::make(
             compact('name', 'email', 'password'),
             [
-                'name'     => 'required|string|max:255',
-                'email'    => 'required|email|unique:users,email',
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|unique:users,email',
                 'password' => 'required|string|min:8',
             ]
         );
@@ -48,11 +58,12 @@ class MakeAdmin extends Command
         }
 
         $admin = User::create([
-            'name'              => $name,
-            'email'             => $email,
-            'password'          => Hash::make($password),
-            'role'              => 'admin',
-            'status'            => 'active',
+            'school_id' => $school->id,
+            'name' => $name,
+            'email' => $email,
+            'password' => Hash::make($password),
+            'role' => 'admin',
+            'status' => 'active',
             // Dibuat lewat CLI trusted di server — tidak lewat alur kode
             // verifikasi email publik, jadi langsung ditandai terverifikasi.
             'email_verified_at' => now(),

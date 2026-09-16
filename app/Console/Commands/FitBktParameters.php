@@ -3,8 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Models\BktParameter;
+use App\Models\School;
 use App\Models\Subject;
 use App\Services\BayesianKnowledgeTracingService;
+use App\Support\SchoolContext;
 use Illuminate\Console\Command;
 
 /**
@@ -22,6 +24,7 @@ use Illuminate\Console\Command;
 class FitBktParameters extends Command
 {
     protected $signature = 'bkt:fit
+        {--school= : Kode sekolah (kosongkan untuk memproses tiap sekolah secara terpisah)}
         {--subject= : ID mata pelajaran spesifik (kosongkan untuk parameter global)}
         {--all-subjects : Fit parameter untuk tiap mata pelajaran secara terpisah, plus global}
         {--min-sequences=5 : Jumlah minimum urutan observasi supaya fitting dianggap layak dipakai}';
@@ -30,18 +33,33 @@ class FitBktParameters extends Command
 
     public function handle(BayesianKnowledgeTracingService $bkt): int
     {
-        $minSequences = (int) $this->option('min-sequences');
+        $schools = School::where('is_active', true)
+            ->when($this->option('school'), fn ($q) => $q->where('code', strtoupper($this->option('school'))))->get();
+        if ($schools->isEmpty()) {
+            $this->error('Sekolah tidak ditemukan.');
 
-        if ($this->option('all-subjects')) {
-            $this->fitAndSave($bkt, null, $minSequences);
-            foreach (Subject::all() as $subject) {
-                $this->fitAndSave($bkt, $subject->id, $minSequences, $subject->name);
-            }
-            return self::SUCCESS;
+            return self::FAILURE;
         }
+        foreach ($schools as $school) {
+            app(SchoolContext::class)->run($school->id, function () use ($bkt, $school) {
+                $this->info('Sekolah: '.$school->name);
+                $min = max(1, (int) $this->option('min-sequences'));
+                if ($this->option('subject')) {
+                    $subject = Subject::find($this->option('subject'));
+                    if ($subject) {
+                        $this->fitAndSave($bkt, $subject->id, $min, $subject->name);
+                    }
 
-        $subjectId = $this->option('subject') ? (int) $this->option('subject') : null;
-        $this->fitAndSave($bkt, $subjectId, $minSequences);
+                    return;
+                }
+                $this->fitAndSave($bkt, null, $min, 'Fallback sekolah');
+                if ($this->option('all-subjects')) {
+                    foreach (Subject::all() as $subject) {
+                        $this->fitAndSave($bkt, $subject->id, $min, $subject->name);
+                    }
+                }
+            });
+        }
 
         return self::SUCCESS;
     }
@@ -58,9 +76,10 @@ class FitBktParameters extends Command
 
         if (count($sequences) < $minSequences) {
             $this->warn(
-                "[{$label}] Cuma ada " . count($sequences) . " urutan observasi (butuh minimal {$minSequences}). " .
+                "[{$label}] Cuma ada ".count($sequences)." urutan observasi (butuh minimal {$minSequences}). ".
                 'Dilewati — belum cukup data historis untuk fitting yang layak dipakai.'
             );
+
             return;
         }
 

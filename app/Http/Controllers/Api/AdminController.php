@@ -10,9 +10,7 @@ use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
-    public function __construct(private AdminManagementService $admin)
-    {
-    }
+    public function __construct(private AdminManagementService $admin) {}
 
     /**
      * GET /admin/dashboard
@@ -20,10 +18,10 @@ class AdminController extends Controller
     public function dashboard()
     {
         return response()->json([
-            'total_siswa'     => User::where('role', 'siswa')->count(),
-            'total_guru'      => User::where('role', 'guru')->count(),
-            'guru_pending'    => User::where('role', 'guru')->where('status', 'pending')->count(),
-            'total_subjects'  => Subject::count(),
+            'total_siswa' => User::where('role', 'siswa')->count(),
+            'total_guru' => User::where('role', 'guru')->count(),
+            'guru_pending' => User::where('role', 'guru')->where('status', 'pending')->count(),
+            'total_subjects' => Subject::count(),
             'subjects_active' => Subject::where('is_active', true)->count(),
         ]);
     }
@@ -146,7 +144,7 @@ class AdminController extends Controller
         $subject = Subject::findOrFail($id);
 
         $validated = $request->validate([
-            'email' => 'required|email|exists:users,email',
+            'email' => 'required|email|school_exists:users,email',
         ]);
 
         $result = $this->admin->addTeacherToSubject($subject, $validated['email']);

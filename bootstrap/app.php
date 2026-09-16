@@ -1,46 +1,58 @@
 <?php
 
+use App\Console\Commands\MakeAdmin;
+use App\Console\Commands\SendAdaptiveReminders;
+use App\Http\Middleware\CheckRole;
+use App\Http\Middleware\EnsureApproved;
+use App\Http\Middleware\UseSchool;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web:      __DIR__.'/../routes/web.php',
-        api:      __DIR__.'/../routes/api.php',
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
-        health:   '/up',
+        health: '/up',
     )
     ->withCommands([
-        \App\Console\Commands\SendAdaptiveReminders::class,
-        \App\Console\Commands\MakeAdmin::class,
+        SendAdaptiveReminders::class,
+        MakeAdmin::class,
     ])
     ->withMiddleware(function (Middleware $middleware) {
-    $middleware->append(
-        \Illuminate\Http\Middleware\HandleCors::class,
-    );
-    $middleware->alias([
-        'role'     => \App\Http\Middleware\CheckRole::class,
-        'approved' => \App\Http\Middleware\EnsureApproved::class,
-    ]);
-    $middleware->statefulApi();
+        $middleware->append(
+            HandleCors::class,
+        );
+        $middleware->alias([
+            'school' => UseSchool::class,
+            'role' => CheckRole::class,
+            'approved' => EnsureApproved::class,
+        ]);
+        $middleware->statefulApi();
+        $middleware->prependToPriorityList(SubstituteBindings::class, UseSchool::class);
 
-    // API request yang tidak terautentikasi kembalikan JSON bukan redirect.
-    // Panel web guru (/guru/*) diarahkan ke guru.login, sisanya (termasuk
-    // /admin/*) tetap ke login (punya admin) — perilaku lama tidak berubah.
-    $middleware->redirectGuestsTo(function (Request $request) {
-    if ($request->is('api/*') || $request->expectsJson()) {
-        return null; // return null = kembalikan 401 JSON
-    }
+        // API request yang tidak terautentikasi kembalikan JSON bukan redirect.
+        // Panel web guru (/guru/*) diarahkan ke guru.login, sisanya (termasuk
+        // /admin/*) tetap ke login (punya admin) — perilaku lama tidak berubah.
+        $middleware->redirectGuestsTo(function (Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return null; // return null = kembalikan 401 JSON
+            }
 
-    return route('login'); // satu halaman login untuk semua guest web
-});
-})
+            return route('login'); // satu halaman login untuk semua guest web
+        });
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         // TAMBAH: handle unauthenticated exception untuk API
         $exceptions->render(function (
-            \Illuminate\Auth\AuthenticationException $e,
+            AuthenticationException $e,
             Request $request
         ) {
             if ($request->is('api/*') || $request->expectsJson()) {
@@ -56,7 +68,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // `Accept: application/json` secara eksplisit — sebelumnya balik jadi
         // halaman error HTML default Laravel untuk request semacam itu.
         $exceptions->render(function (
-            \Symfony\Component\HttpKernel\Exception\HttpException $e,
+            HttpException $e,
             Request $request
         ) {
             if ($request->is('api/*')) {
@@ -75,13 +87,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // balik jadi HTML redirect ke Flutter, bukan pesan error yang jelas.
         // Ditemukan saat testing alur verifikasi email (2026-08-17).
         $exceptions->render(function (
-            \Illuminate\Validation\ValidationException $e,
+            ValidationException $e,
             Request $request
         ) {
             if ($request->is('api/*')) {
                 return response()->json([
                     'message' => $e->getMessage(),
-                    'errors'  => $e->errors(),
+                    'errors' => $e->errors(),
                 ], $e->status);
             }
         });

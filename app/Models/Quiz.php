@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToSchool;
 use Illuminate\Database\Eloquent\Model;
 
 class Quiz extends Model
 {
+    use BelongsToSchool;
+
     protected $fillable = [
         'topic_id',
         'title',
@@ -29,7 +32,18 @@ class Quiz extends Model
     }
 
     // Helper untuk cek tipe
-    public function isPreTest(): bool  { return $this->type === 'pre_test'; }
-    public function isPostTest(): bool { return $this->type === 'post_test'; }
-    public function isRegular(): bool  { return $this->type === 'regular'; }
+    public function isPreTest(): bool
+    {
+        return $this->type === 'pre_test';
+    }
+
+    public function isPostTest(): bool
+    {
+        return $this->type === 'post_test';
+    }
+
+    public function isRegular(): bool
+    {
+        return $this->type === 'regular';
+    }
 }
