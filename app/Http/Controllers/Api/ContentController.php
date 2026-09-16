@@ -7,6 +7,7 @@ use App\Models\Material;
 use App\Models\Quiz;
 use App\Models\QuizQuestion;
 use App\Models\Topic;
+use App\Services\MaterialMediaService;
 use App\Services\SubjectAccessService;
 use Illuminate\Http\Request;
 
@@ -24,7 +25,7 @@ class ContentController extends Controller
     {
         $subjectId = $this->access->resolveSubjectId($request, $request->user(), $subjectId);
 
-        return response()->json(Topic::where('subject_id', $subjectId)->orderBy('order')->get());
+        return response()->json(Topic::where('subject_id', $subjectId)->with(['materials' => fn ($q) => $q->orderBy('order')->orderBy('id')])->with('quizzes')->withCount('quizzes')->orderBy('order')->get());
     }
 
     public function storeTopic(Request $request, $subjectId = null)
@@ -58,7 +59,7 @@ class ContentController extends Controller
     public function updateTopic(Request $request, $id)
     {
         $topic = Topic::findOrFail($id);
-        $this->access->assertTeaches($request->user(), $topic->subject_id);
+        $this->assertMaterialTopic($request, $topic);
 
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
@@ -78,7 +79,7 @@ class ContentController extends Controller
     public function destroyTopic(Request $request, $id)
     {
         $topic = Topic::findOrFail($id);
-        $this->access->assertTeaches($request->user(), $topic->subject_id);
+        $this->assertMaterialTopic($request, $topic);
 
         $topic->delete();
 
@@ -90,70 +91,38 @@ class ContentController extends Controller
 
     public function storeMaterial(Request $request)
     {
-        $request->validate([
-            'topic_id' => 'required|school_exists:topics,id',
-            'title' => 'required|string',
-            'content' => 'required|string',
-            'video_url' => 'nullable|string',
-            'duration_minutes' => 'nullable|integer',
-            'file' => 'nullable|file|mimes:pdf,doc,docx,ppt,pptx,jpg,jpeg,png|max:15360',
-        ]);
-
+        $request->validate(['topic_id' => 'required|school_exists:topics,id']);
         $topic = Topic::findOrFail($request->topic_id);
-        $this->access->assertTeaches($request->user(), $topic->subject_id);
+        $this->assertMaterialTopic($request, $topic);
+        $material = app(MaterialMediaService::class)->save($request, null, $topic->id);
 
-        $data = $request->only(['topic_id', 'title', 'content', 'video_url', 'duration_minutes']);
-
-        if ($request->hasFile('file')) {
-            $file = $request->file('file');
-            $path = $file->store('materials', 'public');
-
-            $data['file_path'] = $path;
-            $data['file_name'] = $file->getClientOriginalName();
-            $data['file_type'] = $file->getClientMimeType();
-        }
-
-        $material = Material::create($data);
-
-        return response()->json([
-            'message' => 'Materi berhasil dibuat',
-            'material' => $material,
-        ], 201);
+        return response()->json(['message' => 'Materi berhasil dibuat', 'material' => $material], 201);
     }
 
-    /**
-     * PUT /guru/content/materials/{id}
-     * BARU (lihat catatan updateTopic()).
-     */
-    public function updateMaterial(Request $request, $id)
+    public function updateMaterial(Request $request)
     {
-        $material = Material::with('topic:id,subject_id')->findOrFail($id);
-        $this->access->assertTeaches($request->user(), $material->topic->subject_id);
+        $material = Material::with('topic')->findOrFail($request->route('id'));
+        $this->assertMaterialTopic($request, $material->topic);
+        $material = app(MaterialMediaService::class)->save($request, $material, $material->topic_id);
 
-        $validated = $request->validate([
-            'title' => 'sometimes|string',
-            'content' => 'sometimes|string',
-            'video_url' => 'nullable|string',
-            'duration_minutes' => 'nullable|integer',
-        ]);
-
-        $material->update($validated);
-
-        return response()->json(['message' => 'Materi berhasil diperbarui', 'material' => $material->fresh()]);
+        return response()->json(['message' => 'Materi berhasil diperbarui', 'material' => $material]);
     }
 
-    /**
-     * DELETE /guru/content/materials/{id}
-     * BARU (lihat catatan updateTopic()).
-     */
-    public function destroyMaterial(Request $request, $id)
+    public function destroyMaterial(Request $request)
     {
-        $material = Material::with('topic:id,subject_id')->findOrFail($id);
-        $this->access->assertTeaches($request->user(), $material->topic->subject_id);
-
-        $material->delete();
+        $material = Material::with('topic')->findOrFail($request->route('id'));
+        $this->assertMaterialTopic($request, $material->topic);
+        app(MaterialMediaService::class)->delete($material);
 
         return response()->json(['message' => 'Materi berhasil dihapus']);
+    }
+
+    private function assertMaterialTopic(Request $request, Topic $topic): void
+    {
+        $this->access->assertTeaches($request->user(), $topic->subject_id);
+        if ($request->route('subjectId')) {
+            abort_unless((int) $request->route('subjectId') === (int) $topic->subject_id, 404);
+        }
     }
 
     // ==================== KUIS ====================
@@ -169,7 +138,7 @@ class ContentController extends Controller
         ]);
 
         $topic = Topic::findOrFail($validated['topic_id']);
-        $this->access->assertTeaches($request->user(), $topic->subject_id);
+        $this->assertMaterialTopic($request, $topic);
 
         $quiz = Quiz::create([
             'topic_id' => $validated['topic_id'],
@@ -189,7 +158,7 @@ class ContentController extends Controller
     public function updateQuiz(Request $request, $id)
     {
         $quiz = Quiz::with('topic:id,subject_id')->findOrFail($id);
-        $this->access->assertTeaches($request->user(), $quiz->topic->subject_id);
+        $this->assertMaterialTopic($request, $quiz->topic);
 
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
@@ -210,7 +179,7 @@ class ContentController extends Controller
     public function destroyQuiz(Request $request, $id)
     {
         $quiz = Quiz::with('topic:id,subject_id')->findOrFail($id);
-        $this->access->assertTeaches($request->user(), $quiz->topic->subject_id);
+        $this->assertMaterialTopic($request, $quiz->topic);
 
         $quiz->delete();
 
@@ -222,17 +191,18 @@ class ContentController extends Controller
     public function getQuizzesByTopic(Request $request, $topicId)
     {
         $topic = Topic::findOrFail($topicId);
-        $this->access->assertTeaches($request->user(), $topic->subject_id);
+        $this->assertMaterialTopic($request, $topic);
 
         $quizzes = Quiz::where('topic_id', $topicId)->withCount('questions')->get();
 
         return response()->json($quizzes);
     }
 
-    public function storeQuizQuestion(Request $request, $quizId)
+    public function storeQuizQuestion(Request $request)
     {
+        $quizId = (int) $request->route('quizId');
         $quiz = Quiz::with('topic:id,subject_id')->findOrFail($quizId);
-        $this->access->assertTeaches($request->user(), $quiz->topic->subject_id);
+        $this->assertMaterialTopic($request, $quiz->topic);
 
         $request->validate([
             'question' => 'required|string',

@@ -62,6 +62,7 @@ Route::middleware(['auth:sanctum', 'school'])->group(function () {
     // Topik & Materi
     Route::get('/topics', [TopicController::class, 'index']);
     Route::get('/topics/{id}', [TopicController::class, 'show']);
+    Route::get('/materials/{material}/attachments/{attachment}', [MaterialController::class, 'attachment'])->name('material.attachment');
     Route::get('/materials/{id}', [MaterialController::class, 'show']);
 
     // Kuis
